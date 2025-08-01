@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nkd_agents"
+dynamic = ["version"]
+description = "nkd_agents is a package for building agents using only what you really need: an llm, a loop, and a few tools."
+authors = [
+    { name = "Amitej Mehta", email = "amitejmehta@berkeley.edu" }
+]
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    "anthropic==0.59.0",
+    "logfire==3.22.0",
+    "mcp[cli]==1.6.0",
+    "pytest==8.3.2",
+    "prompt-toolkit==3.0.51",
+    "loguru>=0.7.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "freezegun==1.5.1",
+    "pyright==1.1.403",
+    "pytest==8.3.2",
+    "pytest-cov==5.0.0",
+    "pytest-mock==3.14.0",
+    "ruff==0.4.9",
+    "radon==6.0.1",
+]
+
+# Explicitly specify the packages to include
+[tool.setuptools]
+packages = ["nkd_agents"]
+
+
+# Default ruff configuration from: https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.8
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.lint.per-file-ignores]
+# Changing the order of imports in our inits breaks the code. We can probably improve
+# our project structure to avoid this in the future (no circular imports).
+"__init__.py" = ["I"]
+"__main__.py" = ["I"]
+
+[tool.mypy]
+install_types = true
+non_interactive = true
+
+# Treat type checking errors as warnings
+show_error_codes = true
+
+# Treat missing imports as warnings
+ignore_missing_imports = true
+
+# Check untyped function definitions
+check_untyped_defs = true
+
+# Warn about casting an expression to its inferred type
+warn_redundant_casts = true
+
+# Warn about unneeded # type: ignore comments
+warn_unused_ignores = true
+
+# Disallow any untyped definitions and calls
+#disallow_untyped_defs = true
+
+# Disallow sub-classing any untyped classes
+disallow_subclassing_any = true
+
