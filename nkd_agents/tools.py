@@ -79,7 +79,10 @@ async def read_file(path: str) -> str:
 
 
 async def edit_file(path: str, old_str: str, new_str: str) -> str:
-    """Make edits to a text file. Replaces 'old_str' with 'new_str' in the given file. 'old_str' and 'new_str' MUST be different from each other. If the file specified with path doesn't exist, it will be created."""
+    """Make edits to a text file. Replaces 'old_str' with 'new_str' in the given file.
+    'old_str' and 'new_str' MUST be different from each other.
+    If the file specified with path doesn't exist, it will be created.
+    When making multiple edits to a file, use this function separately for each edit rather than attempting to make all changes at once."""
     file_path = Path(path)
 
     if old_str == new_str:

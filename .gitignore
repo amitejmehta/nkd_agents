@@ -1,7 +1,6 @@
 .DS_Store
 data/**
 output/**
-workflows/examples/outputs/**
 
 # Customer data and labeled datasets (stored in Google Drive)
 labeled_test_data/**
