@@ -39,7 +39,7 @@ class LLM:
 
     def __init__(
         self,
-        model: str = "claude-3-7-sonnet-latest",
+        model: str = "claude-sonnet-4-20250514",
         system_prompt: str = None,
         tools: Optional[List[Callable]] = None,
         msg_history: Optional[List[Dict[str, Any]]] = None,
@@ -120,12 +120,6 @@ class LLM:
 
 def parse_signature(func: Callable) -> Tuple[Dict[str, str], List[str]]:
     """Get parameters and required parameters from a function signature."""
-    if not (inspect.iscoroutinefunction(func) or callable(func)):
-        raise ValueError(f"Tool {func} must be a function.")
-
-    if not func.__doc__:
-        raise ValueError(f"Tool {func.__name__} must have a description")
-
     signature = inspect.signature(func)
     parameters, required = {}, []
     for param in signature.parameters.values():
@@ -144,6 +138,12 @@ def parse_signature(func: Callable) -> Tuple[Dict[str, str], List[str]]:
 
 def to_json(func: Callable) -> Dict[str, str | Dict[str, str] | List[str]]:
     """Convert a function into a JSON schema for Anthropic tool usage."""
+    if not (inspect.iscoroutinefunction(func) or callable(func)):
+        raise ValueError(f"Tool {func} must be a function.")
+
+    if not func.__doc__:
+        raise ValueError(f"Tool {func.__name__} must have a description")
+
     parameters, required = parse_signature(func)
 
     return {
@@ -157,7 +157,7 @@ def to_json(func: Callable) -> Dict[str, str | Dict[str, str] | List[str]]:
     }
 
 
-async def loop(llm: LLM, input_iter: AsyncIterator[List[Dict[str, str]]]) -> None:
+async def loop(llm: LLM, input_iter: AsyncIterator[List[Dict[str, str]]]) -> str:
     """Execute LLM loop with pluggable input iterator.
 
     The internal loop runs until the LLM returns a response WITHOUT tool calls.
