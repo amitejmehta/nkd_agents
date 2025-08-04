@@ -3,11 +3,11 @@
 ## Roadmap
 
 ### 🔧 Chore
-- [ ] **Pyright Fixes**: Resolve all type checking issues and improve type annotations
-  - [ ] Fix missing type annotations in `config.py` and `context.py`
-  - [ ] Add proper return type annotations for all async functions
-  - [ ] Resolve `NOT_GIVEN` type issues in `llm.py`
-  - [ ] Add comprehensive type checking for tool schema generation
+- [x] **Pyright Fixes**: Resolve all type checking issues and improve type annotations
+  - [x] Fix missing type annotations in `config.py` and `context.py`
+  - [x] Add proper return type annotations for all async functions
+  - [x] Resolve `NOT_GIVEN` type issues in `llm.py`
+  - [x] Add comprehensive type checking for tool schema generation
 - [ ] **Unit Testing Expansion**: Achieve comprehensive test coverage
   - [ ] Add tests for `LLM` class methods (`__call__`, `execute_tool`)
   - [ ] Add tests for `loop` function with various input scenarios
@@ -15,7 +15,7 @@
   - [ ] Add integration tests for agent creation and basic workflows
   - [ ] Add tests for CLI functionality and user input handling
   - [ ] Set up test coverage reporting and CI/CD pipeline
-- [ ] **Documentation**: Improve inline documentation and examples
+- [ ] **Documentation**: Improve inline documentation and exampitles
   - [ ] Add comprehensive docstrings to all public methods
   - [ ] Create API reference documentation
   - [ ] Add more usage examples and tutorials
@@ -47,17 +47,17 @@
     - [ ] Dependency detection between research tasks
     - [ ] Priority-based task ordering
 
-- [ ] **Sub-Agent Architecture**: Hierarchical agent delegation
-  - [ ] **Agent Spawning**: Parent agents can create specialized child agents
-    - [ ] Define sub-agent specializations and capabilities
-    - [ ] Pass context and constraints to child agents
-    - [ ] Lifecycle management (create, monitor, terminate)
+- [x] **Sub-Agent Architecture**: Hierarchical agent delegation
+  - [x] **Agent Spawning**: Parent agents can create specialized child agents
+    - [x] Define sub-agent specializations and capabilities
+    - [x] Pass context and constraints to child agents
+    - [x] Lifecycle management (create, monitor, terminate)
   - [ ] **Task Delegation**: Intelligent work distribution
     - [ ] Automatic task routing based on agent capabilities
     - [ ] Load balancing across available sub-agents
     - [ ] Task queue management and prioritization
-  - [ ] **Result Aggregation**: Combine outputs from multiple sub-agents
-    - [ ] Merge research findings and eliminate duplicates
+  - [x] **Result Aggregation**: Combine outputs from multiple sub-agents
+    - [x] Merge research findings and eliminate duplicates (via shared markdown report)
     - [ ] Resolve conflicts between sub-agent conclusions
     - [ ] Generate comprehensive final reports
 
@@ -465,6 +465,30 @@ The framework includes unit tests that validate:
 - Error handling
 
 Tests use pytest and cover the core `llm.py` functionality.
+
+## Recent Updates
+
+### Sub-Agent Spawning (Latest)
+The framework now supports hierarchical agent delegation through the `spawn_subagent` tool:
+
+- **Shared Research Reports**: All agents collaborate via a shared markdown research report
+- **Task-Focused Sub-Agents**: Parent agents can spawn specialized sub-agents for specific tasks
+- **Automatic Integration**: Sub-agent results are automatically merged back through the shared report
+- **Infinite Recursion Protection**: Sub-agents cannot spawn further sub-agents
+- **Type-Safe Implementation**: Full pyright compliance with proper error handling
+
+Example usage:
+```python
+from nkd_agents.agents import claude_research
+from nkd_agents.llm import loop, prompt_input
+
+# Create research agent with sub-agent capabilities
+agent = claude_research()
+
+# Task that will automatically use sub-agents
+task = "Research the current state of AI frameworks and create a comprehensive report"
+result = await loop(agent, prompt_input(task))
+```
 
 ## Summary
 

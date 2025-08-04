@@ -22,6 +22,8 @@ class RichLogger(Console):
 
 
 class AgentSettings(BaseSettings):
+    prompt_dir: str = "nkd_agents/prompts"
+
     @property
     def runtime_env(self):
         """Update this to be conditional based on your dev env's."""

@@ -1,6 +1,7 @@
 from functools import partial
 
 import pytest
+
 from nkd_agents.llm import parse_signature
 
 

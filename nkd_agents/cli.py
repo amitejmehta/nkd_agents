@@ -31,7 +31,11 @@ async def user_input(llm: LLM) -> AsyncIterator[List[Dict[str, str]]]:
 
 async def chat(llm: LLM) -> None:
     try:
-        intro = f"model: [magenta]{llm._model}[/magenta]\n\ntools:\n{'\n\n'.join(f'- [cyan bold]{fn.__name__}[/cyan bold]: {fn.__doc__}' for fn in llm._tool_dict.values())}\n\nType [bold red]'CTRL+C'[/bold red] to end the conversation.\nType [bold yellow]'clear'[/bold yellow] to clear the message history.\n\n"
+        tools_info = ""
+        if llm._tool_dict:
+            tools_info = f"\n\ntools:\n{'\n\n'.join(f'- [cyan bold]{fn.__name__}[/cyan bold]: {fn.__doc__}' for fn in llm._tool_dict.values())}"
+        
+        intro = f"model: [magenta]{llm._model}[/magenta]{tools_info}\n\nType [bold red]'CTRL+C'[/bold red] to end the conversation.\nType [bold yellow]'clear'[/bold yellow] to clear the message history.\n\n"
         logger.info(intro)
         await loop(llm, user_input(llm))
     except KeyboardInterrupt:
