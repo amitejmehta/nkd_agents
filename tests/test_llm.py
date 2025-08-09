@@ -2,12 +2,24 @@ from functools import partial
 
 import pytest
 
-from nkd_agents.llm import parse_signature
+from nkd_agents.llm import parse_signature, to_json
 
 
-def test_parse_signature_not_callable():
+def test_to_json_without_docstring():
+    """Test that parse_signature raises ValueError when a function has no docstring."""
     with pytest.raises(ValueError) as excinfo:
-        parse_signature(1)
+
+        def add(a: int, b: int):
+            return a + b
+
+        to_json(add)
+
+    assert "must have a description" in str(excinfo.value)
+
+
+def test_to_json_not_callable():
+    with pytest.raises(ValueError) as excinfo:
+        to_json(1)
 
     assert "must be a function" in str(excinfo.value)
 
@@ -42,18 +54,6 @@ def test_parse_signature_without_type_hint_b():
         parse_signature(add)
 
     assert "Parameter b must have a type hint" in str(excinfo.value)
-
-
-def test_parse_signature_without_docstring():
-    """Test that parse_signature raises ValueError when a function has no docstring."""
-    with pytest.raises(ValueError) as excinfo:
-
-        def add(a: int, b: int):
-            return a + b
-
-        parse_signature(add)
-
-    assert "must have a description" in str(excinfo.value)
 
 
 def test_parse_signature_with_partial():
