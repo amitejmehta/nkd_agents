@@ -12,11 +12,8 @@ authors = [
 requires-python = ">=3.12, <3.13"
 dependencies = [
     "anthropic==0.59.0",
-    "logfire==3.22.0",
-    "mcp[cli]==1.6.0",
-    "pytest==8.3.2",
     "prompt-toolkit==3.0.51",
-    "loguru>=0.7.3",
+    "pyfiglet==1.0.3",
 ]
 
 [project.optional-dependencies]
