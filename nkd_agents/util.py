@@ -1,9 +1,10 @@
+import logging
 from pathlib import Path
 from typing import Any, Dict
 
 from jinja2 import Environment
 
-from .config import logger
+logger = logging.getLogger(__name__)
 
 
 def jinja_required(var, msg):

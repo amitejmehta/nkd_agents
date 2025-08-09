@@ -1,42 +1,33 @@
-from pydantic_settings import BaseSettings
+import logging
+import sys
+
 from rich.console import Console
+from rich.logging import RichHandler
+
+IS_TTY = sys.stderr.isatty()
+console = Console()
 
 
-class RichLogger(Console):
-    """RichLogger extends the Rich Console class to provide a logger interface."""
+def setup_logging(level: int = logging.INFO) -> None:
+    """Alternate between rich and basic logging based on IS_TTY."""
+    if IS_TTY:
+        handler = RichHandler(
+            console=console,
+            rich_tracebacks=True,
+            tracebacks_show_locals=True,
+            markup=True,
+        )
+        fmt = "%(message)s"
+        datefmt = "[%X]"
+    else:
+        handler = logging.StreamHandler(sys.stderr)
+        fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+        datefmt = "%Y-%m-%d %H:%M:%S"
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._styles = {
-            "debug": "[dim]{}[/dim]",
-            "info": "{}",
-            "warning": "[yellow]{}[/yellow]",
-            "error": "[red]{}[/red]",
-            "critical": "[bold red]{}[/bold red]",
-        }
-
-    def __getattr__(self, name: str):
-        if name in self._styles:
-            return lambda msg: self.print(self._styles[name].format(msg))
-        return super().__getattribute__(name)
-
-
-class AgentSettings(BaseSettings):
-    prompt_dir: str = "nkd_agents/prompts"
-
-    @property
-    def runtime_env(self):
-        """Update this to be conditional based on your dev env's."""
-        return "local"
-
-    def get_logger(self):
-        if self.runtime_env == "local":
-            return RichLogger()
-        else:
-            from loguru import logger
-
-            return logger
-
-
-settings = AgentSettings()
-logger = settings.get_logger()
+    logging.basicConfig(
+        level=level,
+        format=fmt,
+        datefmt=datefmt,
+        handlers=[handler],
+        force=True,  # override prior configs if any
+    )
