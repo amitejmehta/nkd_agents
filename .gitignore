@@ -2,12 +2,8 @@
 data/**
 output/**
 
-# Customer data and labeled datasets (stored in Google Drive)
-labeled_test_data/**
-avarra_labeled_datasets_*.zip
-
 # Byte-compiled / optimized / DLL files
-__pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 
