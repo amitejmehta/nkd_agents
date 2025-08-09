@@ -18,4 +18,4 @@ def claude_research() -> LLM:
     return LLM(system_prompt=system_prompt, tools=tools)
 
 
-AGENT_MAP = {"claude_code": claude_code, "deep_research": claude_research}
+AGENT_MAP = {"code": claude_code, "research": claude_research}

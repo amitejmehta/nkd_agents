@@ -17,8 +17,7 @@ env = Environment()
 env.filters["required"] = jinja_required
 
 
-def render(template: Path | str, vars: Dict[str, Any]) -> str:
-    template_str = template if isinstance(template, str) else template.read_text()
-    rendered = env.from_string(template_str).render(**vars)
+def render(template: Path, vars: Dict[str, Any]) -> str:
+    rendered = env.from_string(template.read_text()).render(**vars)
     logger.info(f"Rendered template:\n{template}")
     return rendered

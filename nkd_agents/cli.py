@@ -3,8 +3,8 @@ import os
 import sys
 from typing import List
 
-import pyfiglet
 from anthropic.types import TextBlockParam
+from jinja2 import Template
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 
@@ -12,12 +12,26 @@ from .agents import AGENT_MAP
 from .config import console
 from .llm import LLM
 
-# NOTE: multiline=False is important (https://github.com/prompt-toolkit/python-prompt-toolkit/issues/1894
 session = PromptSession(multiline=False)
 PROMPT = HTML("<b><ansiyellow>You:</ansiyellow></b> ")
+INTRO_TEMPLATE = """\nWelcome to [bold blue]pyClaude![/bold blue]
+
+model: [magenta]{{ llm._model }}[/magenta]
+
+{% if llm._tool_defs %}
+tools:
+{% for tool in llm._tool_defs %}
+- [cyan bold]{{ tool["name"] }}[/cyan bold]: {{ tool["description"] }}
+{% endfor %}
+{% endif %}
+
+Type [bold red]'CTRL+C'[/bold red] to end the conversation.
+Type [bold yellow]'clear'[/bold yellow] to clear the message history.
+Type [bold turquoise]'edit_mode'[/bold turquoise] to toggle edit approval (currently [bold magenta]{{ edit_mode }}[/bold magenta])."""
 
 
 async def loop(llm: LLM) -> None:
+    "Main CLI loop w/ status and user input"
     msg = await user_input(llm)
     while True:
         with console.status("Thinking..."):
@@ -51,19 +65,14 @@ async def user_input(llm: LLM) -> List[TextBlockParam]:
         return [{"text": x, "type": "text"}]
 
 
-async def main(llm: LLM, agent_name: str) -> None:
+async def main(llm: LLM) -> None:
     try:
-        intro = (
-            f"\n{pyfiglet.figlet_format(f'{agent_name.replace('_', ' ').title()}', font='slant')}"
-            f"model: [magenta]{llm._model}[/magenta]\n\n"
-            f"tools:\n{'\n\n'.join(f'- [cyan bold]{fn.__name__}[/cyan bold]: {fn.__doc__}' for fn in llm._tool_dict.values())}\n"
-            "\n\nType [bold red]'CTRL+C'[/bold red] to end the conversation.\n"
-            "Type [bold yellow]'clear'[/bold yellow] to clear the message history.\n"
-            f"Type [bold yellow]'edit_mode'[/bold yellow] to toggle edit approval (currently [bold magenta]{os.getenv('EDIT_APPROVAL', 'enabled').lower()}[/bold magenta]).\n\n"
-        )
-
+        edit_mode = os.getenv("EDIT_APPROVAL", "enabled").lower()
+        intro = Template(INTRO_TEMPLATE).render(llm=llm, edit_mode=edit_mode)
         console.print(intro)
+
         await loop(llm)
+
     except KeyboardInterrupt:
         console.print("\n\n[bold blue]Exiting... Goodbye![/bold blue]")
     except Exception:
@@ -71,5 +80,5 @@ async def main(llm: LLM, agent_name: str) -> None:
 
 
 if __name__ == "__main__":
-    agent_name = sys.argv[1] if len(sys.argv) > 1 else "claude_code"
-    asyncio.run(main(AGENT_MAP[agent_name](), agent_name))
+    agent_name = sys.argv[1] if len(sys.argv) > 1 else "code"
+    asyncio.run(main(AGENT_MAP[agent_name]()))
