@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
-from .config import console
+from .cli_config import console
 from .llm import LLM, loop
 from .util import render
 

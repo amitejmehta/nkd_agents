@@ -7,7 +7,7 @@ from jinja2 import Environment
 logger = logging.getLogger(__name__)
 
 
-def jinja_required(var, msg):
+def jinja_required(var: Any, msg: str) -> Any:
     if not var:
         raise ValueError(msg)
     return var

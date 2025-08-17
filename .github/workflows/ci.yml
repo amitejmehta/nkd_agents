@@ -37,7 +37,7 @@ jobs:
     
     - name: Run xenon cyclomatic complexity analysis
       run: |
-        xenon --max-average B --max-modules B --max-absolute B nkd_agents/
+        xenon --max-average A --max-modules A --max-absolute B nkd_agents/
     
     - name: Generate complexity report
       run: |

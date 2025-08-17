@@ -57,10 +57,10 @@ class LLM:
     ):
         self._client = AsyncAnthropic()
         self._model = model
-        self._messages: List[MessageParam] = [] if msg_history is None else msg_history
+        self._messages: List[MessageParam] = msg_history or []
         self._system_prompt = system_prompt or NOT_GIVEN
         self._wrapper = ContextWrapper(ctx) if ctx else None
-        self._tool_defs = [to_json(tool) for tool in tools] if tools else NOT_GIVEN  # type: ignore
+        self._tool_defs = [to_json(tool) for tool in tools] if tools else NOT_GIVEN
         self._tool_dict = {tool.__name__: tool for tool in tools} if tools else None
 
     @property

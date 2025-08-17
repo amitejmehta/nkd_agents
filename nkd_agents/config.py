@@ -5,14 +5,13 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 IS_TTY = sys.stderr.isatty()
-console = Console()
 
 
 def setup_logging(level: int = logging.INFO) -> None:
     """Alternate between rich and basic logging based on IS_TTY."""
     if IS_TTY:
         handler = RichHandler(
-            console=console,
+            console=Console(),
             rich_tracebacks=True,
             tracebacks_show_locals=True,
             markup=True,
