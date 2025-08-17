@@ -1,25 +1,28 @@
 import asyncio
 import os
 import random
-import re
-from pathlib import Path
+import subprocess
 from typing import List
 
 from anthropic.types import TextBlockParam, ToolResultBlockParam, ToolUseBlock
 
-from .agents import pyclaude
-from .cli_config import HELP_MESSAGE, INTRO_MESSAGE, STATUS_MESSAGES, console, session
-from .llm import LLM
+from nkd_agents.llm import LLM
+
+from .config import HELP, INTRO, STATUS, cmds, console, session, style
+from .nkd_agent import nkd_agent
 
 
 async def user_input(llm: LLM) -> List[TextBlockParam]:
     """Enhanced user input with command handling and history support"""
     while True:
-        x = (await session.prompt_async("> ")).strip().lower()
+        x = (await session.prompt_async("> ", style=style)).strip().lower()
 
-        if x not in session.completer.commands:
+        if x not in cmds and not x.startswith("!") and not x.startswith("! "):
             return [{"text": x, "type": "text"}]
 
+        if x.startswith("!"):
+            cmd = ["bash", "-c", x.replace("!", "! ")]
+            subprocess.run(cmd, timeout=10, env=os.environ)
         if x == "/clear":
             llm.messages.clear()
             console.print("[dim]\nMessage history cleared.\n[/dim]")
@@ -29,7 +32,7 @@ async def user_input(llm: LLM) -> List[TextBlockParam]:
             os.environ["EDIT_APPROVAL"] = new_setting
             console.print(f"[dim]Edit approval {new_setting}.[/dim]")
         elif x == "/help":
-            console.print(HELP_MESSAGE)
+            console.print(HELP)
 
 
 async def execute_tool(llm: LLM, tc: ToolUseBlock) -> ToolResultBlockParam:
@@ -51,7 +54,7 @@ async def loop(llm: LLM) -> None:
     msg = await user_input(llm)
     while True:
         try:
-            with console.status(random.choice(STATUS_MESSAGES)):
+            with console.status(random.choice(STATUS)):
                 output, tool_calls = await llm(msg)
             console.print(f"\n[blue bold]Agent:[/blue bold] {output}\n")
             if tool_calls:
@@ -65,10 +68,10 @@ async def loop(llm: LLM) -> None:
         msg = await user_input(llm)
 
 
-async def main(llm: LLM) -> None:
+async def chat(llm: LLM) -> None:
     """Main entry point with enhanced error handling"""
     try:
-        console.print(INTRO_MESSAGE)
+        console.print(INTRO)
         await loop(llm)
     except (KeyboardInterrupt, EOFError):
         console.print("\n\n[bold blue]Exiting... Goodbye![/bold blue]")
@@ -77,4 +80,4 @@ async def main(llm: LLM) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main(pyclaude()))
+    asyncio.run(chat(nkd_agent()))

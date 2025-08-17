@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from prompt_toolkit.document import Document
 
-from nkd_agents.cli_config import (
+from nkd_agents.cli_completer import (
     CombinedCompleter,
     FileCompleter,
     SlashCommandCompleter,

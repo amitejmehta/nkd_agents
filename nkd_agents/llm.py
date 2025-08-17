@@ -170,9 +170,6 @@ async def loop(llm: LLM, content: List[TextBlockParam]) -> str:
     msg: Union[List[TextBlockParam], List[ToolResultBlockParam]] = content
     while True:
         output_text, tool_calls = await llm(msg)
-        msg = []
-        if tool_calls:
-            msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])
-        else:
-            break
-    return output_text
+        if not tool_calls:
+            return output_text
+        msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])

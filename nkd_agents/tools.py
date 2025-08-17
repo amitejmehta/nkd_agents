@@ -2,13 +2,11 @@ import difflib
 import logging
 import os
 import subprocess
-from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 
-from .cli_config import console
+from .cli.config import console
 from .llm import LLM, loop
-from .util import render
 
 logger = logging.getLogger(__name__)
 
@@ -156,15 +154,15 @@ async def execute_bash(command: str) -> str:
 
 
 async def spawn_subagent(task: str, report_file: str = "research_report.md") -> str:
-    """Spawn a sub-agent to work on a specific task and contribute to a shared research report.
+    """Spawn a sub-agent to work on a specific task.
 
-    The sub-agent will work on the given task and update the shared report file.
-    Results are automatically merged back into the parent agent's context through the report file.
+    The sub-agent will work on the given task with access to file read/edit and bash execution tools.
+    For research tasks, you can specify a report file path in the task description itself.
+    The sub-agent has access to all necessary tools to complete file-based tasks.
 
     Args:
         task: Clear description of what the sub-agent should accomplish
-        report_file: Path to the shared markdown research report (default: research_report.md)
-        agent_type: Type of agent to spawn (default: 'code', options: 'code', 'research')
+        report_file: Optional file path for backwards compatibility (default: research_report.md)
 
     Returns:
         Summary of what the sub-agent accomplished
@@ -172,46 +170,25 @@ async def spawn_subagent(task: str, report_file: str = "research_report.md") -> 
 
     console.print(f"[yellow bold]Spawning sub-agent for task:[/yellow bold] {task}")
 
-    report_path = Path(report_file)
-    if not report_path.exists():
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        report_path.write_text(f"# Research Report\n\n*Started: {timestamp}*\n\n")
-
-    vars = {"task": task, "report_file": report_file}
-    sub_agent_prompt = render(Path("nkd_agents/prompts/subagent.j2"), vars)
+    sub_agent_prompt = Path("nkd_agents/prompts/subagent.j2").read_text()
 
     tools = [read_file, edit_file, execute_bash]
     sub_agent = LLM(system_prompt=sub_agent_prompt, tools=tools)
 
     task_prompt = f"""I need to work on this specific task: {task}
 
-    First, let me read the current research report to understand what's already been done, 
-    then I'll work on my assigned task and update the report with my findings."""
+    I have access to file reading, editing, and bash execution tools to complete this task.
+    I should analyze the task and determine what files or resources I need to work with."""
 
     try:
         final_output = await loop(sub_agent, [{"type": "text", "text": task_prompt}])
 
-        if report_path.exists():
-            current_report = report_path.read_text()
-            # Find sections that might be from this sub-agent (simple heuristic)
-            report_lines = current_report.split("\n")
-            summary_lines = [
-                line for line in report_lines[-30:] if line.strip()
-            ]  # Last 30 non-empty lines
-            recent_section = "\n".join(summary_lines)
-        else:
-            recent_section = "No report file found after sub-agent execution"
-
         result = f"""✅ Sub-agent completed task: {task}
-
-        📊 Report updated at: {report_file}
-
-        🔍 Recent additions to report:
-        {recent_section}
 
         💬 Sub-agent final response: {final_output}
 
-        The research report has been updated and is available for your review. You can read the full report using the read_file tool."""
+        The sub-agent has completed its work. Any files that were modified during the task 
+        are now available for your review using the read_file tool."""
 
         console.print(f"[green bold]Sub-agent task completed:[/green bold] {task}")
         return result

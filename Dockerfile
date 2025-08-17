@@ -1,23 +1,6 @@
-# Multi-stage build for minimal runtime image
-FROM python:3.12-slim as builder
+FROM python:3.12-slim
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy source code
-COPY . /src
-WORKDIR /src
-
-# Install package and dependencies
-RUN pip install --no-cache-dir -e .
-
-# Runtime stage
-FROM python:3.12-slim as runtime
-
-# Install minimal runtime dependencies
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     bash \
     git \
@@ -29,20 +12,18 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd -g 1000 agent && \
     useradd -u 1000 -g agent -m -s /bin/bash agent
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy only the package files needed for installation
+COPY pyproject.toml /tmp/
+COPY nkd_agents/ /tmp/nkd_agents/
 
-# Create workspace directory
+# Install the package
+WORKDIR /tmp
+RUN pip install --no-cache-dir -e .
+
+# Create workspace directory and switch to non-root user
 RUN mkdir -p /workspace && chown agent:agent /workspace
-
-# Switch to non-root user
 USER agent
 WORKDIR /workspace
 
-# Set environment variables
-ENV PYTHONPATH=/usr/local/lib/python3.12/site-packages
-ENV PATH=/usr/local/bin:$PATH
-
 # Default command
-CMD ["python", "-m", "nkd_agents.cli", "code"]
+CMD ["nkd_agents", "code"]
