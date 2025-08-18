@@ -12,12 +12,14 @@ authors = [
 requires-python = ">=3.12, <3.13"
 dependencies = [
     "anthropic==0.59.0",
-    "logfire==3.22.0",
-    "mcp[cli]==1.6.0",
-    "pytest==8.3.2",
     "prompt-toolkit==3.0.51",
-    "loguru>=0.7.3",
+    "jinja2==3.1.6",
+    "rich==14.1.0",
+    "pathspec==0.12.1",
 ]
+
+[project.scripts]
+nkd_agents = "nkd_agents.__main__:main"
 
 [project.optional-dependencies]
 dev = [
@@ -27,7 +29,7 @@ dev = [
     "pytest-cov==5.0.0",
     "pytest-mock==3.14.0",
     "ruff==0.4.9",
-    "radon==6.0.1",
+    "xenon==0.9.3",
 ]
 
 # Explicitly specify the packages to include

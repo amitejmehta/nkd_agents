@@ -7,11 +7,19 @@
 # ///
 import asyncio
 import inspect
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
+import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from anthropic import NOT_GIVEN, AsyncAnthropic
+from anthropic.types import (
+    CacheControlEphemeralParam,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ToolUseBlock,
+)
 
-from .config import logger
 from .context import ContextWrapper
 
 TYPE_MAP = {
@@ -22,6 +30,8 @@ TYPE_MAP = {
     list: {"type": "array"},
     dict: {"type": "object"},
 }
+
+logger = logging.getLogger(__name__)
 
 
 class LLM:
@@ -40,37 +50,38 @@ class LLM:
     def __init__(
         self,
         model: str = "claude-sonnet-4-20250514",
-        system_prompt: str = None,
+        system_prompt: Optional[str] = None,
         tools: Optional[List[Callable]] = None,
-        msg_history: Optional[List[Dict[str, Any]]] = None,
+        msg_history: Optional[List[MessageParam]] = None,
         ctx: Optional[Any] = None,
     ):
         self._client = AsyncAnthropic()
         self._model = model
-        self._messages = [] if msg_history is None else msg_history
+        self._messages: List[MessageParam] = msg_history or []
         self._system_prompt = system_prompt or NOT_GIVEN
         self._wrapper = ContextWrapper(ctx) if ctx else None
         self._tool_defs = [to_json(tool) for tool in tools] if tools else NOT_GIVEN
         self._tool_dict = {tool.__name__: tool for tool in tools} if tools else None
 
     @property
-    def messages(self) -> List[Dict[str, str]]:
+    def messages(self) -> List[MessageParam]:
         """Get the message history."""
         return self._messages
 
     @messages.setter
-    def messages(self, messages: List[Dict[str, str]]):
+    def messages(self, messages: List[MessageParam]):
         self._messages = messages
 
     async def __call__(
-        self, content: List[Dict[str, str]]
-    ) -> Tuple[str, List[Dict[str, str]]]:
+        self, content: List[TextBlockParam] | List[ToolResultBlockParam]
+    ) -> Tuple[str, List[ToolUseBlock]]:
         """Call the LLM given a list of input messages
         Input messages are ALWAYS appended to the message history.
         The output message is ALWAYS appended to the message history.
         """
-        self._messages.append({"role": "user", "content": content})
-        self._messages[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}
+
+        content[-1]["cache_control"] = CacheControlEphemeralParam(type="ephemeral")
+        self.messages.append({"role": "user", "content": content})
         response = await self._client.messages.create(
             model=self._model,
             max_tokens=20000,
@@ -78,43 +89,35 @@ class LLM:
             messages=self._messages,
             tools=self._tool_defs,
         )
-        del self._messages[-1]["content"][-1]["cache_control"]
-        assistant_response = {"role": "assistant", "content": []}
-        tool_calls = []
-        output_text = ""
+        del content[-1]["cache_control"]
+        output_text, tool_calls = "", []
 
-        for content in response.content:
-            if content.type == "text":
-                text_content = content.text
-                output_text += text_content
-                assistant_response["content"].append(
-                    {"type": "text", "text": text_content}
-                )
-            elif content.type == "tool_use":
-                assistant_response["content"].append(content)
-                tool_calls.append(
-                    {"id": content.id, "name": content.name, "input": content.input}
-                )
+        for block in response.content:
+            if block.type == "text":
+                output_text += block.text
+            if block.type == "tool_use":
+                tool_calls.append(block)
 
-        self._messages.append(assistant_response)
+        self.messages.append({"role": "assistant", "content": response.content})
         return output_text, tool_calls
 
-    async def execute_tool(
-        self, tool_call: Dict[str, Any]
-    ) -> Dict[str, str | List[Dict[str, str]]]:
+    async def execute_tool(self, tool_call: ToolUseBlock) -> ToolResultBlockParam:
         """Handle a single tool call from the LLM."""
-        tool, tool_args = self._tool_dict[tool_call["name"]], tool_call["input"]
+        if self._tool_dict is None:
+            raise ValueError("No tools available")
+
+        tool, tool_args = self._tool_dict[tool_call.name], tool_call.input
 
         if "wrapper" in inspect.signature(tool).parameters:
-            tool_args = tool_args | {"wrapper": self._wrapper}
+            tool_args = tool_args | {"wrapper": self._wrapper}  # type: ignore
 
         is_coroutine = inspect.iscoroutinefunction(tool)
-        result = await tool(**tool_args) if is_coroutine else tool(**tool_args)
+        result = await tool(**tool_args) if is_coroutine else tool(**tool_args)  # type: ignore
 
-        return dict(
+        return ToolResultBlockParam(
             type="tool_result",
-            tool_use_id=tool_call["id"],
-            content=[dict(type="text", text=result)],
+            tool_use_id=tool_call.id,
+            content=[TextBlockParam(text=str(result), type="text")],
         )
 
 
@@ -136,9 +139,10 @@ def parse_signature(func: Callable) -> Tuple[Dict[str, str], List[str]]:
     return parameters, required
 
 
-def to_json(func: Callable) -> Dict[str, str | Dict[str, str] | List[str]]:
+def to_json(func: Callable) -> ToolParam:
     """Convert a function into a JSON schema for Anthropic tool usage."""
-    if not (inspect.iscoroutinefunction(func) or callable(func)):
+
+    if not callable(func):
         raise ValueError(f"Tool {func} must be a function.")
 
     if not func.__doc__:
@@ -146,46 +150,26 @@ def to_json(func: Callable) -> Dict[str, str | Dict[str, str] | List[str]]:
 
     parameters, required = parse_signature(func)
 
-    return {
-        "name": func.__name__,
-        "description": func.__doc__,
-        "input_schema": {
+    return ToolParam(
+        name=func.__name__,
+        description=func.__doc__,
+        input_schema={
             "type": "object",
             "properties": parameters,
             "required": required,
         },
-    }
+    )
 
 
-async def loop(llm: LLM, input_iter: AsyncIterator[List[Dict[str, str]]]) -> str:
+async def loop(llm: LLM, content: List[TextBlockParam]) -> str:
     """Execute LLM loop with pluggable input iterator.
 
     The internal loop runs until the LLM returns a response WITHOUT tool calls.
     The external loop runs until the input iterator is exhausted.
-    Tool calls are executed in parallel to improve response time.
-
-    The basic `prompt_input` function is an example of an input iterator
-    that only yields a single message."""
-    async for msg in input_iter:
-        while True:
-            output, tool_calls = await llm(msg)
-            logger.info(f"\n[blue bold]Agent:[/blue bold] {output}\n")
-            if tool_calls:
-                logger.info(f"\n[cyan bold]Tool calls:[/cyan bold] {tool_calls}\n")
-                msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])
-            else:
-                break
-    return llm.messages[-1]["content"][-1]["text"]
-
-
-async def prompt_input(prompt: str) -> AsyncIterator[List[Dict[str, str]]]:
-    """Iterator that yields a single input message.
-    Use this when you desire only a single loop or "agent run".
-    Usage:
-    ```python
-    async def main():
-        llm = LLM()
-        await loop(llm, prompt_input("Hello, world!"))
-    ```
-    """
-    yield [{"type": "text", "text": prompt}]
+    Tool calls are executed in parallel to improve response time."""
+    msg: Union[List[TextBlockParam], List[ToolResultBlockParam]] = content
+    while True:
+        output_text, tool_calls = await llm(msg)
+        if not tool_calls:
+            return output_text
+        msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])
