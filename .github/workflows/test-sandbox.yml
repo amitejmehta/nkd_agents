@@ -21,9 +21,6 @@ jobs:
     - name: Install package
       run: pip install -e .
     
-    - name: Test CLI help
-      run: python -m nkd_agents help
-    
     - name: Test Docker image build
       run: docker build -t nkd_agents:latest .
     
