@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 
@@ -8,7 +8,7 @@ T = TypeVar("T")
 class ContextWrapper(Generic[T]):
     """Wrapper for type safe safe access to dependencies"""
 
-    def __init__(self, ctx: Optional[T] = None):
+    def __init__(self, ctx: T):
         self._ctx = ctx
 
     @property
