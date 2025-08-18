@@ -288,8 +288,6 @@ class TestFileCompleter:
 
         # Get initial completions
         doc = Document("@", 1)
-        initial_completions = list(completer.get_completions(doc, None))
-        initial_suggestions = [c.text for c in initial_completions]
 
         # Create subdirectory with different files
         subdir = temp_dir / "subdir2"
