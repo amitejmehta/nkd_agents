@@ -25,5 +25,5 @@ RUN mkdir -p /workspace && chown agent:agent /workspace
 USER agent
 WORKDIR /workspace
 
-# Default command
-CMD ["nkd_agents", "code"]
+# Default command  
+CMD ["python", "-m", "nkd_agents.cli.cli"]

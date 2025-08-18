@@ -59,7 +59,9 @@ class FileCompleter(Completer):
 
         return is_ignored
 
-    def _get_all_files(self, directory: Path = None, max_depth: int = 3) -> list[str]:
+    def _get_all_files(
+        self, directory: Path | None = None, max_depth: int = 3
+    ) -> list[str]:
         """Recursively get all files, respecting gitignore"""
         if directory is None:
             directory = Path(".")
@@ -109,7 +111,8 @@ class FileCompleter(Completer):
         # Only complete if we're currently typing a word that starts with @
         if current_word.startswith("@"):
             self._refresh_files()
-            yield from self._completer.get_completions(document, complete_event)
+            if self._completer is not None:
+                yield from self._completer.get_completions(document, complete_event)
 
 
 class CombinedCompleter(Completer):

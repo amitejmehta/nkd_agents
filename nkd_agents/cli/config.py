@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import cast
 
@@ -11,7 +12,7 @@ from .completer import CombinedCompleter
 
 INTRO = """[dim]\n\nWelcome to [bold magenta]nkd_agents[/bold magenta]!
 \n/help to learn more.[/dim]\n"""
-HELP = """
+HELP = f"""
 [dim]Available Commands:
 - /clear: Clear the message history
 - /edit_mode: Toggle edit approval mode
@@ -22,6 +23,9 @@ Tips:
 - Auto-suggestions appear in gray as you type
 - Press Tab to complete commands (only at start of line)
 - Press Ctrl+C to interrupt long-running operations[/dim]
+
+In sandbox mode, cwd is mounted at /workspace in the container.
+[dim]Anthropic API Key: {'*' * (len(os.environ.get("ANTHROPIC_API_KEY", "")) - 4) + os.environ.get("ANTHROPIC_API_KEY", "")[-4:]}[/dim]"
 """
 
 HISTORY_FILE = Path.home() / ".nkd_agents" / "history.txt"
