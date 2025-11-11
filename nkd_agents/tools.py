@@ -153,47 +153,73 @@ async def execute_bash(command: str) -> str:
 # -----------------------------------------------------------------------------
 
 
-async def spawn_subagent(task: str, report_file: str = "research_report.md") -> str:
-    """Spawn a sub-agent to work on a specific task.
+async def spawn_subagent(
+    prompt: str,
+    description: str = "",
+    model: str = "claude-sonnet-4-5",
+) -> str:
+    """Spawn a sub-agent to work on a specific task autonomously.
 
     The sub-agent will work on the given task with access to file read/edit and bash execution tools.
-    For research tasks, you can specify a report file path in the task description itself.
-    The sub-agent has access to all necessary tools to complete file-based tasks.
+    Use this for complex, multi-step tasks that benefit from focused attention.
 
     Args:
-        task: Clear description of what the sub-agent should accomplish
-        report_file: Optional file path for backwards compatibility (default: research_report.md)
+        prompt: Detailed description of what the sub-agent should accomplish. Be specific about:
+            - What the task is and why it's needed
+            - What files or resources might be relevant
+            - What the expected output or outcome should be
+            - Any constraints or requirements
+        description: Short 3-5 word summary of the task for progress tracking (e.g., "Refactor auth module")
+        model: Claude model to use. Options:
+            - "claude-sonnet-4-5" (default) - Balanced performance
+            - "claude-haiku-4-5" - Faster, more cost-effective for simpler tasks
+            - "claude-opus-4-1" - Most capable for complex reasoning
 
     Returns:
         Summary of what the sub-agent accomplished
+
+    Examples:
+        # Simple task with auto-generated description
+        await spawn_subagent("Find all TODO comments in Python files and create a summary")
+
+        # Complex task with explicit description
+        await spawn_subagent(
+            prompt="Refactor the authentication module to use OAuth2 instead of session tokens",
+            description="OAuth2 refactor",
+            model="claude-opus-4-20250514"
+        )
     """
 
-    console.print(f"[yellow bold]Spawning sub-agent for task:[/yellow bold] {task}")
+    task_label = (
+        description
+        if description
+        else prompt[:50] + ("..." if len(prompt) > 50 else "")
+    )
+
+    console.print(f"\n[yellow bold]→ Spawning sub-agent:[/yellow bold] {task_label}")
+    console.print(f"[dim]  Model: {model}[/dim]")
 
     sub_agent_prompt = Path("nkd_agents/prompts/subagent.j2").read_text()
 
     tools = [read_file, edit_file, execute_bash]
-    sub_agent = LLM(system_prompt=sub_agent_prompt, tools=tools)
-
-    task_prompt = f"""I need to work on this specific task: {task}
-
-    I have access to file reading, editing, and bash execution tools to complete this task.
-    I should analyze the task and determine what files or resources I need to work with."""
+    sub_agent = LLM(system_prompt=sub_agent_prompt, tools=tools, model=model)
 
     try:
-        final_output = await loop(sub_agent, [{"type": "text", "text": task_prompt}])
+        with console.status(f"[cyan]⚙ Sub-agent working: {task_label}[/cyan]"):
+            final_output = await loop(sub_agent, [{"type": "text", "text": prompt}])
 
-        result = f"""✅ Sub-agent completed task: {task}
+        result = f"""✅ Sub-agent completed: {task_label}
 
-        💬 Sub-agent final response: {final_output}
+Final response:
+{final_output}
 
-        The sub-agent has completed its work. Any files that were modified during the task 
-        are now available for your review using the read_file tool."""
+Note: Any files modified by the sub-agent are now available in your workspace."""
 
-        console.print(f"[green bold]Sub-agent task completed:[/green bold] {task}")
+        console.print(f"[green bold]✓ Sub-agent completed:[/green bold] {task_label}\n")
         return result
 
     except Exception as e:
         error_msg = f"❌ Sub-agent encountered an error: {str(e)}"
-        console.print(f"[red bold]Sub-agent error:[/red bold] {error_msg}")
+        console.print(f"[red bold]✗ Sub-agent failed:[/red bold] {task_label}")
+        logger.exception("Sub-agent execution failed", exc_info=e)
         return error_msg

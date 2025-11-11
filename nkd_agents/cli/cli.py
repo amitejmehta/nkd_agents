@@ -6,10 +6,10 @@ from typing import List
 
 from anthropic.types import TextBlockParam, ToolResultBlockParam, ToolUseBlock
 
+from nkd_agents.agents import nkd_agent
 from nkd_agents.llm import LLM
 
 from .config import HELP, INTRO, STATUS, cmds, console, session, style
-from .nkd_agent import nkd_agent
 
 
 async def user_input(llm: LLM) -> List[TextBlockParam]:

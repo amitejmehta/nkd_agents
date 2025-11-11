@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from ..llm import LLM
-from ..tools import edit_file, execute_bash, read_file, spawn_subagent
+from .llm import LLM
+from .tools import edit_file, execute_bash, read_file, spawn_subagent
 
 
 def nkd_agent() -> LLM:
