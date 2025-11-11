@@ -1,10 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# dependencies = [
-#   "anthropic>=0.45.0",
-#   "rich>=13.0.0",
-# ]
-# ///
 import asyncio
 import inspect
 import logging
@@ -49,7 +42,7 @@ class LLM:
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-5-20250929",
         system_prompt: Optional[str] = None,
         tools: Optional[List[Callable]] = None,
         msg_history: Optional[List[MessageParam]] = None,
@@ -150,14 +143,9 @@ def to_json(func: Callable) -> ToolParam:
 
     parameters, required = parse_signature(func)
 
+    input_schema = {"type": "object", "properties": parameters, "required": required}
     return ToolParam(
-        name=func.__name__,
-        description=func.__doc__,
-        input_schema={
-            "type": "object",
-            "properties": parameters,
-            "required": required,
-        },
+        name=func.__name__, description=func.__doc__, input_schema=input_schema
     )
 
 
@@ -170,6 +158,8 @@ async def loop(llm: LLM, content: List[TextBlockParam]) -> str:
     msg: Union[List[TextBlockParam], List[ToolResultBlockParam]] = content
     while True:
         output_text, tool_calls = await llm(msg)
+        logger.info(f"Output text: {output_text}")
+        logger.info(f"Tool calls: {tool_calls}")
         if not tool_calls:
             return output_text
         msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])

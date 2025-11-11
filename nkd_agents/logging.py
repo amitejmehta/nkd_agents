@@ -15,6 +15,9 @@ def setup_logging(level: int = logging.INFO) -> None:
             rich_tracebacks=True,
             tracebacks_show_locals=True,
             markup=True,
+            show_time=False,
+            show_level=False,
+            show_path=False,
         )
         fmt = "%(message)s"
         datefmt = "[%X]"
@@ -30,3 +33,6 @@ def setup_logging(level: int = logging.INFO) -> None:
         handlers=[handler],
         force=True,  # override prior configs if any
     )
+
+    if IS_TTY:
+        logging.getLogger("httpx").setLevel(logging.WARNING)

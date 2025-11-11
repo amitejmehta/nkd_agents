@@ -8,8 +8,11 @@ from anthropic.types import TextBlockParam, ToolResultBlockParam, ToolUseBlock
 
 from nkd_agents.agents import nkd_agent
 from nkd_agents.llm import LLM
+from nkd_agents.logging import setup_logging
 
 from .config import HELP, INTRO, STATUS, cmds, console, session, style
+
+setup_logging()
 
 
 async def user_input(llm: LLM) -> List[TextBlockParam]:
