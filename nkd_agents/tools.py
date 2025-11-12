@@ -141,8 +141,14 @@ async def execute_bash(command: str) -> str:
         result = subprocess.run(
             ["bash", "-c", command], capture_output=True, text=True, timeout=10
         )
-        result_str = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
-        logger.info(f"[cyan bold]Bash({command}):[/cyan bold] {result_str}")
+
+        result_str = f"STDOUT:\n{result.stdout}"
+        if result.stderr.strip():
+            result_str += f"\n\n[red]STDERR:\n{result.stderr}"
+        if result.returncode != 0:
+            result_str += f"\n\n[red]EXIT CODE: {result.returncode}[/red]"
+
+        logger.info(f"[cyan bold]Bash({command})[/cyan bold] {result_str}")
         return result_str
     except Exception as e:
         return f"Error executing command: {str(e)}"

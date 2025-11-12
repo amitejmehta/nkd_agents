@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import json
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -55,6 +56,11 @@ class LLM:
         self._wrapper = ContextWrapper(ctx) if ctx else None
         self._tool_defs = [to_json(tool) for tool in tools] if tools else NOT_GIVEN
         self._tool_dict = {tool.__name__: tool for tool in tools} if tools else None
+
+    @property
+    def model(self) -> str:
+        """Get the model name."""
+        return self._model
 
     @property
     def messages(self) -> List[MessageParam]:
@@ -158,8 +164,8 @@ async def loop(llm: LLM, content: List[TextBlockParam]) -> str:
     msg: Union[List[TextBlockParam], List[ToolResultBlockParam]] = content
     while True:
         output_text, tool_calls = await llm(msg)
-        logger.info(f"Output text: {output_text}")
-        logger.info(f"Tool calls: {tool_calls}")
+        logger.info(f"{llm.model}:\n{output_text}")
         if not tool_calls:
             return output_text
+        logger.info(f"{llm.model} Tool Calls: {tool_calls}")
         msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])

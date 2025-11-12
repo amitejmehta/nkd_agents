@@ -58,6 +58,7 @@ STATUS = [
 
 
 console = Console()
+
 session = PromptSession(
     multiline=False,
     history=FileHistory(str(HISTORY_FILE)),  # enable history via arrow keys
