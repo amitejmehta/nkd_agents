@@ -1,3 +1,4 @@
+import asyncio
 import difflib
 import logging
 import os
@@ -5,7 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import Iterator
 
-from .cli.config import console
 from .llm import LLM, loop
 
 logger = logging.getLogger(__name__)
@@ -159,12 +159,12 @@ async def execute_bash(command: str) -> str:
 # -----------------------------------------------------------------------------
 
 
-async def spawn_subagent(
+async def task(
     prompt: str,
     description: str = "",
     model: str = "claude-sonnet-4-5",
 ) -> str:
-    """Spawn a sub-agent to work on a specific task autonomously.
+    """Task a sub-agent to work on a specific task autonomously.
 
     The sub-agent will work on the given task with access to file read/edit and bash execution tools.
     Use this for complex, multi-step tasks that benefit from focused attention.
@@ -186,10 +186,10 @@ async def spawn_subagent(
 
     Examples:
         # Simple task with auto-generated description
-        await spawn_subagent("Find all TODO comments in Python files and create a summary")
+        await task("Find all TODO comments in Python files and create a summary")
 
         # Complex task with explicit description
-        await spawn_subagent(
+        await task(
             prompt="Refactor the authentication module to use OAuth2 instead of session tokens",
             description="OAuth2 refactor",
             model="claude-opus-4-20250514"
@@ -206,12 +206,11 @@ async def spawn_subagent(
     logger.info(f"[dim]  Model: {model}[/dim]")
 
     tools = [read_file, edit_file, execute_bash]
-    sub_agent = LLM(tools=tools, model=model)
+    sub_agent, q = LLM(tools=tools, model=model), asyncio.Queue()
+    await q.put([{"type": "text", "text": prompt}])
 
     try:
-        with console.status(f"[cyan]⚙ Sub-agent working: {task_label}[/cyan]"):
-            final_output = await loop(sub_agent, [{"type": "text", "text": prompt}])
-
+        final_output = await loop(sub_agent, q)
         result = f"""✅ Sub-agent completed: {task_label}
 
 Final response:
