@@ -8,23 +8,21 @@
 
 ```
 nkd_agents/
-├── __init__.py          # Empty package initializer
-├── config.py            # Configuration and logging setup
+├── __init__.py          # Package initializer
 ├── context.py           # Type-safe dependency injection wrapper
 ├── llm.py              # Core LLM wrapper and main loop logic
+├── logging.py           # Logging configuration
 ├── tools.py            # Built-in file system, bash, and sub-agent tools
-├── agents.py           # Pre-configured agent definitions
-├── cli.py              # Command-line interface for interactive chat
 ├── util.py             # Jinja2 template rendering utilities
-└── prompts/            # Agent prompt templates
-    ├── claude_research.j2  # Research agent system prompt
-    └── subagent.j2        # Sub-agent task prompt template
+└── chat/               # Chat w/ Claude Code style agent
+    ├── cli.py          # Command-line interface
+    └── config.py       # CLI configuration and session setup
 
 Supporting Files:
-├── CLAUDE.md           # System prompt for Claude code agent
-├── pyproject.toml      # Project configuration and dependencies
+├── Dockerfile
+├── CLAUDE.md            
+├── pyproject.toml      
 └── tests/
-    └── test_llm.py     # Unit tests for core functionality
 ```
 
 ## Core Architecture
