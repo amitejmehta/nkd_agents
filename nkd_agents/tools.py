@@ -32,7 +32,7 @@ def _resolve_path(path: str) -> Path:
 
 
 @contextmanager
-def sandbox():
+def file_sandbox():
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
             path = Path(tmpdir).resolve()
@@ -163,55 +163,19 @@ BASH_CMDS_APPROVAL_REQUIRED = ["rm", "rmdir", "rm -rf", "git reset"]
 
 
 async def execute_bash(command: str) -> str:
-    """Execute a bash command and return a formatted string with the results.
-
-    When file_sandbox() is active, commands run in an isolated namespace using
-    bubblewrap where only the sandbox directory is accessible.
-    """
+    """Execute a bash command and return a formatted string with the results."""
     if any([command.strip().startswith(x) for x in BASH_CMDS_APPROVAL_REQUIRED]):
         approval = input(f"Cmd {command.strip()} requires approval. y to proceed): ")
         if approval.strip().lower() != "y":
             return "Command execution cancelled by user."
 
-    sandbox_dir = _sandbox_dir.get()
-
     try:
-        if sandbox_dir:
-            cmd = [
-                "bwrap",
-                "--ro-bind",
-                "/usr",
-                "/usr",
-                "--ro-bind",
-                "/lib",
-                "/lib",
-                "--ro-bind",
-                "/lib64",
-                "/lib64",
-                "--bind",
-                str(sandbox_dir),
-                "/workspace",
-                "--dev",
-                "/dev",
-                "--proc",
-                "/proc",
-                "--tmpfs",
-                "/tmp",
-                "--unshare-net",
-                "--die-with-parent",
-                "bash",
-                "-c",
-                f"cd /workspace && {command}",
-            ]
-        else:
-            cmd = ["bash", "-c", command]
-
         result = subprocess.run(
-            cmd,
+            ["bash", "-c", command],
             capture_output=True,
             text=True,
             timeout=10,
-            cwd=None if sandbox_dir else None,
+            cwd=_sandbox_dir.get(),
         )
 
         result_str = f"STDOUT:\n{result.stdout}"
@@ -220,10 +184,7 @@ async def execute_bash(command: str) -> str:
         if result.returncode != 0:
             result_str += f"\n\n[red]EXIT CODE: {result.returncode}[/red]"
 
-        sandbox_label = " [dim](sandboxed)[/dim]" if sandbox_dir else ""
-        logger.info(
-            f"[cyan bold]Bash({command})[/cyan bold]{sandbox_label} {result_str}"
-        )
+        logger.info(f"[cyan bold]Bash({command})[/cyan bold] {result_str}")
         return result_str
     except Exception as e:
         return f"Error executing command: {str(e)}"
