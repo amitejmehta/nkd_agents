@@ -3,12 +3,44 @@ import difflib
 import logging
 import os
 import subprocess
+import tempfile
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterator
 
 from .llm import LLM, loop
 
 logger = logging.getLogger(__name__)
+
+# -----------------------------------------------------------------------------
+# File Sandbox for Security
+# -----------------------------------------------------------------------------
+
+_sandbox_dir = ContextVar[Path | None]("sandbox_dir", default=None)
+
+
+def _resolve_path(path: str) -> Path:
+    sandbox_dir = _sandbox_dir.get()
+    if not sandbox_dir:
+        return Path(path)
+
+    resolved = (sandbox_dir / path).resolve()
+    if not str(resolved).startswith(str(sandbox_dir)):
+        raise PermissionError(f"Path '{path}' escapes sandbox")
+    return resolved
+
+
+@contextmanager
+def sandbox():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            path = Path(tmpdir).resolve()
+            sandbox_dir = _sandbox_dir.set(path)
+            yield path
+        finally:
+            _sandbox_dir.reset(sandbox_dir)
+
 
 # -----------------------------------------------------------------------------
 # Helper functions for diffs
@@ -69,7 +101,7 @@ def display_diff(diff: Iterator[str], file_path: str) -> None:
 
 async def read_file(path: str) -> str:
     """Read the contents of a given relative file path. Use this when you want to see what's inside a file. Do not use this with directory names."""
-    file_path = Path(path)
+    file_path = _resolve_path(path)
     try:
         content = file_path.read_text(encoding="utf-8")
         logger.info(f"[bold]Read({path})[/bold]")
@@ -87,7 +119,7 @@ async def edit_file(path: str, old_str: str, new_str: str) -> str:
     'old_str' and 'new_str' MUST be different from each other.
     If the file specified with path doesn't exist, it will be created.
     When making multiple edits to a file, use this function separately for each edit rather than attempting to make all changes at once."""
-    file_path = Path(path)
+    file_path = _resolve_path(path)
 
     if old_str == new_str:
         return "Error: old_str and new_str must be different"
@@ -131,15 +163,55 @@ BASH_CMDS_APPROVAL_REQUIRED = ["rm", "rmdir", "rm -rf", "git reset"]
 
 
 async def execute_bash(command: str) -> str:
-    """Execute a bash command and return a formatted string with the results."""
+    """Execute a bash command and return a formatted string with the results.
+
+    When file_sandbox() is active, commands run in an isolated namespace using
+    bubblewrap where only the sandbox directory is accessible.
+    """
     if any([command.strip().startswith(x) for x in BASH_CMDS_APPROVAL_REQUIRED]):
         approval = input(f"Cmd {command.strip()} requires approval. y to proceed): ")
         if approval.strip().lower() != "y":
             return "Command execution cancelled by user."
 
+    sandbox_dir = _sandbox_dir.get()
+
     try:
+        if sandbox_dir:
+            cmd = [
+                "bwrap",
+                "--ro-bind",
+                "/usr",
+                "/usr",
+                "--ro-bind",
+                "/lib",
+                "/lib",
+                "--ro-bind",
+                "/lib64",
+                "/lib64",
+                "--bind",
+                str(sandbox_dir),
+                "/workspace",
+                "--dev",
+                "/dev",
+                "--proc",
+                "/proc",
+                "--tmpfs",
+                "/tmp",
+                "--unshare-net",
+                "--die-with-parent",
+                "bash",
+                "-c",
+                f"cd /workspace && {command}",
+            ]
+        else:
+            cmd = ["bash", "-c", command]
+
         result = subprocess.run(
-            ["bash", "-c", command], capture_output=True, text=True, timeout=10
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=None if sandbox_dir else None,
         )
 
         result_str = f"STDOUT:\n{result.stdout}"
@@ -148,7 +220,10 @@ async def execute_bash(command: str) -> str:
         if result.returncode != 0:
             result_str += f"\n\n[red]EXIT CODE: {result.returncode}[/red]"
 
-        logger.info(f"[cyan bold]Bash({command})[/cyan bold] {result_str}")
+        sandbox_label = " [dim](sandboxed)[/dim]" if sandbox_dir else ""
+        logger.info(
+            f"[cyan bold]Bash({command})[/cyan bold]{sandbox_label} {result_str}"
+        )
         return result_str
     except Exception as e:
         return f"Error executing command: {str(e)}"
