@@ -8,16 +8,18 @@ from rich.console import Console
 logger = logging.getLogger(__name__)
 console = Console()
 
-HELP = """[dim]
-
-Anthropic API Key: {masked_key}
+HELP = """
+[dim][bold]Anthropic API Key:[/bold] {masked_key}
 
 Keyboard Shortcuts:
 - '?': show this help message
 - 'Esc'+'Esc': clear input while typing
-- 'Shift+Tab': toggle edit approval
-- 'Tab': toggle thinking (budget: `2048` tokens)
+- 'Tab': toggle thinking w/ `2048` token budget
 - 'Ctrl+L': clear message history
+
+Coming Soon:
+- 'Shift+Tab': toggle edit approval
+
 [/dim]"""
 
 
@@ -29,6 +31,7 @@ def get_help() -> str:
 
 
 msg_history: list[MessageParam] = []
+thinking = {"budget": 2048}
 kb = key_binding.KeyBindings()
 
 
@@ -39,11 +42,11 @@ def _(event):
     buffer.cursor_position = 0
 
 
-@kb.add("s-tab")
-def _(event):
-    current = os.getenv("ACCEPT_EDITS", "false").lower() == "true"
-    os.environ["ACCEPT_EDITS"] = str(not current).lower()
-    logger.info(f"[dim][Accept Edits: {'✓' if not current else '✗'}][/dim]")
+# @kb.add("s-tab")
+# def _(event):
+#     current = os.getenv("ACCEPT_EDITS", "false").lower() == "true"
+#     os.environ["ACCEPT_EDITS"] = str(not current).lower()
+#     logger.info(f"[dim][Accept Edits: {'✓' if not current else '✗'}][/dim]")
 
 
 @kb.add("?")
@@ -58,8 +61,8 @@ def _(event):
 
 @kb.add("tab")
 def _(event):
-    current = os.getenv("ANTHROPIC_THINKING", "false").lower() == "true"
-    os.environ["ANTHROPIC_THINKING"] = str(not current).lower()
+    current = int(os.getenv("ANTHROPIC_THINKING_BUDGET", "0")) > 0
+    os.environ["ANTHROPIC_THINKING_BUDGET"] = "2048" if not current else "0"
     logger.info(f"[dim]\nThinking: {'✓' if not current else '✗'}\n[/dim]")
 
 

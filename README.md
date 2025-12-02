@@ -18,7 +18,7 @@ nkd_agents
 ```
 Alternatively, set `ANTHROPIC_API_KEY` in a `.env` file in your `cwd` (will automatically be loaded).
 
-## Docker Sandbox
+### Docker Sandbox
 
 To run in an isolated Docker container:
 
@@ -31,6 +31,10 @@ Run with volume mount:
 ```bash
 docker run -it -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY -v $(pwd):/workspace nkd_agents
 ```
+
+## Examples
+
+Coming soon!
 
 ## Contributing
 

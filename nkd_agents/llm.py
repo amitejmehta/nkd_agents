@@ -1,5 +1,6 @@
 import inspect
 import logging
+import os
 from typing import Any, Coroutine
 
 from anthropic import NOT_GIVEN, AsyncAnthropic, AsyncAnthropicVertex
@@ -77,8 +78,8 @@ class LLM:
 
     async def __call__(
         self,
-        content: list[TextBlockParam] | list[ToolResultBlockParam] | str,
-        **kwargs: Any,
+        content: list[TextBlockParam] | list[ToolResultBlockParam],
+        **settings: Any,
     ) -> tuple[str, list[ToolUseBlock]]:
         """Send a message to the LLM and return the response.
 
@@ -93,16 +94,20 @@ class LLM:
         content[-1]["cache_control"] = CacheControlEphemeralParam(type="ephemeral")
         self._messages.append({"role": "user", "content": content})
 
-        logger.info(f"{self._model}: Sending message to LLM")
+        if settings.get("thinking") is None:
+            thinking_budget = os.getenv("ANTHROPIC_THINKING_BUDGET", "0")
+            if int(thinking_budget) > 0:
+                thinking = {"type": "enabled", "budget_tokens": int(thinking_budget)}
+                settings["thinking"] = thinking
+
         message: Message = await self._client.messages.create(
             model=self._model,
-            max_tokens=20000,
             system=self._system_prompt or NOT_GIVEN,
             messages=self._messages,
             tools=self._tool_defs or NOT_GIVEN,
-            **kwargs,
+            **settings,
         )
-        logger.info(f"{self._model}: {message.content}")
+        logger.info(f"{self._model} w/ settings: {settings}: {message.content}")
 
         text, tool_calls = "", []
         for block in message.content:

@@ -8,7 +8,7 @@ IS_TTY = sys.stderr.isatty()
 
 
 def configure_logging(level: int = logging.INFO) -> None:
-    """Alternate between rich and basic logging based on IS_TTY."""
+    """Convenience function to toggle Rich logging on/off based on IS_TTY."""
     if IS_TTY:
         handler = RichHandler(
             console=Console(),
@@ -16,19 +16,18 @@ def configure_logging(level: int = logging.INFO) -> None:
             tracebacks_show_locals=True,
             markup=True,
         )
-        fmt = "%(message)s"
-        datefmt = "[%X]"
+        fmt, datefmt = "%(message)s", "[%X]"
+
     else:
         handler = logging.StreamHandler(sys.stderr)
-        fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+        fmt = "%(asctime)s | %(levelname)s   | %(name)s:%(funcName)s:%(lineno)s - %(message)s"
         datefmt = "%Y-%m-%d %H:%M:%S"
-
     logging.basicConfig(
         level=level,
         format=fmt,
         datefmt=datefmt,
         handlers=[handler],
-        force=True,  # override prior configs if any
+        force=True,
     )
 
     if IS_TTY:

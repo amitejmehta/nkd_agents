@@ -8,12 +8,12 @@
 
 ```
 nkd_agents/
-├── __init__.py          # Package initializer
-├── context.py           # Type-safe dependency injection wrapper
-├── llm.py              # Core LLM wrapper and main loop logic
-├── logging.py           # Logging configuration
-├── tools.py            # Built-in file system, bash, and sub-agent tools
-├── util.py             # Jinja2 template rendering utilities
+├── llm.py              # Core LLM wrapper class
+├── loop.py             # Basic loop implementions logic
+├── tools.py            # Basic tool implementations
+├── context.py          # Type-safe dependency injection wrapper
+├── logging.py          # Logging configuration helper
+├── util.py             # Misc util/helper functions
 └── chat/               # Chat w/ Claude Code style agent
     ├── cli.py          # Command-line interface
     └── config.py       # CLI configuration and session setup
