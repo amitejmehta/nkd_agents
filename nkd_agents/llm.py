@@ -98,11 +98,9 @@ class LLM:
         )
         logger.info(f"{self._model}: {message.content}")
 
-        thinking, text, tool_calls = "", "", []
+        text, tool_calls = "", []
         for block in message.content:
-            if block.type == "thinking":
-                thinking += block.thinking
-            elif block.type == "text":
+            if block.type == "text":
                 text += block.text
             elif block.type == "tool_use":
                 tool_calls.append(block)
@@ -110,7 +108,7 @@ class LLM:
         del content[-1]["cache_control"]
 
         self._messages.append({"role": "assistant", "content": message.content})
-        return thinking, text, tool_calls
+        return text, tool_calls
 
     async def execute_tool(self, tool_call: ToolUseBlock) -> ToolResultBlockParam:
         """Handle a single tool call from the LLM."""
