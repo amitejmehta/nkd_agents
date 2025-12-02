@@ -4,6 +4,16 @@
 
 `nkd_agents` is a minimalist Python framework for building AI agents using only the essential components: an LLM, a loop, and tools. The library is built around the philosophy of simplicity, providing a clean, type-safe way to create conversational agents that can execute tools and maintain conversation history.
 
+## Core Architecture
+
+The framework follows a simple but powerful architecture:
+
+**LLM + Loop + Tools = Agent**
+
+1. **LLM**: Handles communication with Anthropic's Claude API
+2. **Loop**: Manages the conversation flow and tool execution
+3. **Tools**: Async functions that the agent can call to interact with the environment
+
 ## Repository Structure
 
 ```
@@ -24,13 +34,3 @@ Supporting Files:
 ├── pyproject.toml      
 └── tests/
 ```
-
-## Core Architecture
-
-The framework follows a simple but powerful architecture:
-
-**LLM + Loop + Tools = Agent**
-
-1. **LLM**: Handles communication with Anthropic's Claude API
-2. **Loop**: Manages the conversation flow and tool execution
-3. **Tools**: Async functions that the agent can call to interact with the environment
