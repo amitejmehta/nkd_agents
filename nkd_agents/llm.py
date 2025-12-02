@@ -1,11 +1,11 @@
-import asyncio
 import inspect
 import logging
-from typing import Any, Callable, Coroutine
+from typing import Any, Coroutine
 
 from anthropic import NOT_GIVEN, AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types import (
     CacheControlEphemeralParam,
+    Message,
     MessageParam,
     TextBlockParam,
     ToolParam,
@@ -13,16 +13,8 @@ from anthropic.types import (
     ToolUseBlock,
 )
 
-from .context import ContextWrapper
-
-TYPE_MAP = {
-    str: {"type": "string"},
-    int: {"type": "integer"},
-    float: {"type": "number"},
-    bool: {"type": "boolean"},
-    list: {"type": "array"},
-    dict: {"type": "object"},
-}
+from .context import Context
+from .util import parse_signature
 
 logger = logging.getLogger(__name__)
 
@@ -46,32 +38,44 @@ class LLM:
         client: AsyncAnthropic | AsyncAnthropicVertex | None = None,
         system_prompt: str | None = None,
         tools: list[Coroutine] | None = None,
-        msg_history: list[MessageParam] | None = None,
-        ctx: Any | None = None,
+        messages: list[MessageParam] | None = None,
+        ctx: Context[Any] | None = None,
     ):
         self._client = client or AsyncAnthropic()
         self._model = model
-        self._messages: list[MessageParam] = (
-            msg_history if msg_history is not None else []
-        )
-        self._system_prompt = system_prompt or NOT_GIVEN
-        self._wrapper = ContextWrapper(ctx) if ctx else None
-        self._tool_defs = [to_json(tool) for tool in tools] if tools else NOT_GIVEN
-        self._tool_dict: dict[str, Coroutine] | None = (
-            {tool.__name__: tool for tool in tools} if tools else None
-        )
+        self._messages: list[MessageParam] = messages if messages is not None else []
+        self._system_prompt = system_prompt
+        self._ctx = Context[Any](ctx) if ctx else None
+        self._tool_defs: list[ToolParam] | None = None
+        self._tool_dict: dict[str, Coroutine] | None = None
+        if tools:
+            self._tool_defs = [LLM._to_tool_definition(tool) for tool in tools]
+            self._tool_dict = {tool.__name__: tool for tool in tools}
 
     @property
-    def messages(self) -> list[MessageParam]:
-        """Get the message history."""
-        return self._messages
+    def model(self) -> str:
+        """Get the model."""
+        return self._model
 
-    @messages.setter
-    def messages(self, messages: list[MessageParam]):
-        self._messages = messages
+    @staticmethod
+    def _to_tool_definition(func: Coroutine) -> ToolParam:
+        """Convert a function into a JSON schema for Anthropic tool usage."""
+
+        parameters, required = parse_signature(func)
+
+        input_schema = {
+            "type": "object",
+            "properties": parameters,
+            "required": required,
+        }
+        return ToolParam(
+            name=func.__name__, description=func.__doc__, input_schema=input_schema
+        )
 
     async def __call__(
-        self, content: list[TextBlockParam] | list[ToolResultBlockParam] | str
+        self,
+        content: list[TextBlockParam] | list[ToolResultBlockParam] | str,
+        **kwargs: Any,
     ) -> tuple[str, list[ToolUseBlock]]:
         """Call the LLM given a list of input messages
         Input messages are ALWAYS appended to the message history.
@@ -81,31 +85,32 @@ class LLM:
             content = [TextBlockParam(text=content, type="text")]
 
         content[-1]["cache_control"] = CacheControlEphemeralParam(type="ephemeral")
-        self.messages.append({"role": "user", "content": content})
+        self._messages.append({"role": "user", "content": content})
 
-        output_text, tool_calls = "", []
-        async with self._client.messages.stream(
+        logger.info(f"{self._model}: Sending message to LLM")
+        message: Message = await self._client.messages.create(
             model=self._model,
             max_tokens=20000,
-            system=self._system_prompt,
+            system=self._system_prompt or NOT_GIVEN,
             messages=self._messages,
-            tools=self._tool_defs,
-        ) as stream:
-            async for text in stream.text_stream:
-                output_text += text
-                logger.info(text)
-            logger.info("")
+            tools=self._tool_defs or NOT_GIVEN,
+            **kwargs,
+        )
+        logger.info(f"{self._model}: {message.content}")
 
-            message = await stream.get_final_message()
+        thinking, text, tool_calls = "", "", []
+        for block in message.content:
+            if block.type == "thinking":
+                thinking += block.thinking
+            elif block.type == "text":
+                text += block.text
+            elif block.type == "tool_use":
+                tool_calls.append(block)
 
         del content[-1]["cache_control"]
 
-        for block in message.content:
-            if block.type == "tool_use":
-                tool_calls.append(block)
-
-        self.messages.append({"role": "assistant", "content": message.content})
-        return output_text, tool_calls
+        self._messages.append({"role": "assistant", "content": message.content})
+        return thinking, text, tool_calls
 
     async def execute_tool(self, tool_call: ToolUseBlock) -> ToolResultBlockParam:
         """Handle a single tool call from the LLM."""
@@ -114,8 +119,8 @@ class LLM:
 
         tool, tool_args = self._tool_dict[tool_call.name], tool_call.input
 
-        if "wrapper" in inspect.signature(tool).parameters:
-            tool_args = tool_args | {"wrapper": self._wrapper}  # type: ignore
+        if "ctx" in inspect.signature(tool).parameters:
+            tool_args = tool_args | {"ctx": self._ctx}  # type: ignore
 
         result = await tool(**tool_args)  # type: ignore
 
@@ -123,68 +128,3 @@ class LLM:
         return ToolResultBlockParam(
             type="tool_result", tool_use_id=tool_call.id, content=content
         )
-
-
-def parse_signature(func: Callable) -> tuple[dict[str, str], list[str]]:
-    """Get parameters and required parameters from a function signature."""
-    signature = inspect.signature(func)
-    parameters, required = {}, []
-    for param in signature.parameters.values():
-        if param.annotation is inspect._empty:
-            raise ValueError(f"Parameter {param.name} must have a type hint")
-
-        if param.name == "wrapper":
-            continue
-
-        parameters[param.name] = TYPE_MAP.get(param.annotation)
-        if param.default is inspect._empty:
-            required.append(param.name)
-
-    return parameters, required
-
-
-def to_json(func: Coroutine) -> ToolParam:
-    """Convert a function into a JSON schema for Anthropic tool usage."""
-
-    if not inspect.iscoroutinefunction(func):
-        raise ValueError(f"Tool {func} must be a coroutine.")
-
-    if not func.__doc__:
-        raise ValueError(f"Tool {func.__name__} must have a description")
-
-    parameters, required = parse_signature(func)
-
-    input_schema = {"type": "object", "properties": parameters, "required": required}
-    return ToolParam(
-        name=func.__name__, description=func.__doc__, input_schema=input_schema
-    )
-
-
-async def loop(llm: LLM, content: list[TextBlockParam]) -> str:
-    """Given initial content, run LLM in loop until it returns a response without tool calls.
-
-    Tool calls are executed in parallel.
-
-    Tool results are NOT yielded back to the queue - they must immediately follow
-    tool call messages to maintain proper message sequencing with the LLM.
-
-    The LLM is responsible for its own erro
-
-    Args:
-        llm: The LLM instance to use
-        content: User content to send to the LLM
-    """
-    msg: list[TextBlockParam] | list[ToolResultBlockParam] = content
-
-    while True:
-        output_text, tool_calls = await llm(msg)
-
-        if not tool_calls:
-            return output_text
-        msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])
-
-
-async def loop_queue(llm: LLM, q: asyncio.Queue[list[TextBlockParam]]):
-    """Continuous loop that pulls from queue"""
-    while True:
-        _ = await loop(llm, await q.get())

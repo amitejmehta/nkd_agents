@@ -8,8 +8,7 @@ from rich.console import Console
 logger = logging.getLogger(__name__)
 console = Console()
 
-HELP = """
-[dim]In sandbox mode, cwd is mounted at /workspace in the container.
+HELP = """[dim]
 
 Anthropic API Key: {masked_key}
 
@@ -17,6 +16,7 @@ Keyboard Shortcuts:
 - '?': show this help message
 - 'Esc'+'Esc': clear input while typing
 - 'Shift+Tab': toggle edit approval
+- 'Tab': toggle thinking (budget: `2048` tokens)
 - 'Ctrl+L': clear message history
 [/dim]"""
 
@@ -24,7 +24,7 @@ Keyboard Shortcuts:
 def get_help() -> str:
     """Generate help text with current API key."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    masked_key = "*" * (len(api_key) - 4) + api_key[-4:] if api_key else "Not set"
+    masked_key = "*" * (len(api_key) - 4) + api_key[-4:] if api_key else "Not Set"
     return HELP.format(masked_key=masked_key)
 
 
@@ -56,10 +56,19 @@ def _(event):
         buffer.insert_text("?")
 
 
+@kb.add("tab")
+def _(event):
+    current = os.getenv("ANTHROPIC_THINKING", "false").lower() == "true"
+    os.environ["ANTHROPIC_THINKING"] = str(not current).lower()
+    logger.info(f"[dim]\nThinking: {'✓' if not current else '✗'}\n[/dim]")
+
+
 @kb.add("c-l")
 def _(event):
+    length = len(msg_history)
+    logger.info(f"[dim]\n{msg_history}\n[/dim]")
     msg_history.clear()
-    logger.info("[dim]Message history cleared[/dim]")
+    logger.info(f"[dim]\nCleared {length} messages from history\n[/dim]")
 
 
 styles = styles.Style.from_dict({"": "ansibrightblack"})

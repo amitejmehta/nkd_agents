@@ -7,7 +7,7 @@ from rich.logging import RichHandler
 IS_TTY = sys.stderr.isatty()
 
 
-def setup_logging(level: int = logging.INFO) -> None:
+def configure_logging(level: int = logging.INFO) -> None:
     """Alternate between rich and basic logging based on IS_TTY."""
     if IS_TTY:
         handler = RichHandler(
@@ -15,9 +15,6 @@ def setup_logging(level: int = logging.INFO) -> None:
             rich_tracebacks=True,
             tracebacks_show_locals=True,
             markup=True,
-            show_time=False,
-            show_level=False,
-            show_path=False,
         )
         fmt = "%(message)s"
         datefmt = "[%X]"

@@ -1,45 +1,15 @@
 import asyncio
 import difflib
 import logging
-import os
 import subprocess
-import tempfile
-from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterator
 
-from .llm import LLM, loop
+from .llm import LLM
+from .loop import loop
 
 logger = logging.getLogger(__name__)
-
-# -----------------------------------------------------------------------------
-# File Sandbox for Security
-# -----------------------------------------------------------------------------
-
-_sandbox_dir = ContextVar[Path | None]("sandbox_dir", default=None)
-
-
-def _resolve_path(path: str) -> Path:
-    sandbox_dir = _sandbox_dir.get()
-    if not sandbox_dir:
-        return Path(path)
-
-    resolved = (sandbox_dir / path).resolve()
-    if not str(resolved).startswith(str(sandbox_dir)):
-        raise PermissionError(f"Path '{path}' escapes sandbox")
-    return resolved
-
-
-@contextmanager
-def file_sandbox():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        try:
-            path = Path(tmpdir).resolve()
-            sandbox_dir = _sandbox_dir.set(path)
-            yield path
-        finally:
-            _sandbox_dir.reset(sandbox_dir)
 
 
 # -----------------------------------------------------------------------------
@@ -99,11 +69,25 @@ def display_diff(diff: Iterator[str], file_path: str) -> None:
 # -----------------------------------------------------------------------------
 
 
+content_var = ContextVar[str | None]("content", default=None)
+
+
+async def edit_string(old_str: str, new_str: str, content: str | None = None) -> str:
+    """Make edits to a string. Replaces 'old_str' with 'new_str' in the given string."""
+    content = content or content_var.get()
+    if content is None:
+        return "Error: No content to edit"
+    if old_str not in content:
+        return "Error: old_str not found in content"
+    if old_str == new_str:
+        return "Error: old_str and new_str must be different"
+    return content.replace(old_str, new_str)
+
+
 async def read_file(path: str) -> str:
     """Read the contents of a given relative file path. Use this when you want to see what's inside a file. Do not use this with directory names."""
-    file_path = _resolve_path(path)
     try:
-        content = file_path.read_text(encoding="utf-8")
+        content = Path(path).read_text(encoding="utf-8")
         logger.info(f"[bold]Read({path})[/bold]")
         return content
     except FileNotFoundError:
@@ -116,76 +100,46 @@ async def read_file(path: str) -> str:
 
 async def edit_file(path: str, old_str: str, new_str: str) -> str:
     """Make edits to a text file. Replaces 'old_str' with 'new_str' in the given file.
-    'old_str' and 'new_str' MUST be different from each other.
-    If the file specified with path doesn't exist, it will be created.
-    When making multiple edits to a file, use this function separately for each edit rather than attempting to make all changes at once."""
-    file_path = _resolve_path(path)
+    Returns the following error messages:
+    - Error: File '{path}' is empty
+    - Error: 'old_str' not found in file content
+    - Error: 'old_str' and 'new_str' must be different
+    - Error: File '{path}' not found
+    - Error: Permission denied accessing '{path}'
+    - Error: Error editing file '{path}': {str(e)}
 
-    if old_str == new_str:
-        return "Error: old_str and new_str must be different"
-
+    Best Practice for Multiple Edits:
+    When editing multiple parts of a file, best practice is to use this function
+    once for each edit rather than one large edit.
+    """
     try:
-        if file_path.exists():
-            content = file_path.read_text(encoding="utf-8")
+        content = Path(path).read_text(encoding="utf-8")
+        if content == "":
+            return f"Error: File '{path}' is empty"
+        if old_str not in content:
+            return "Error: old_str not found in file content"
+        if old_str == new_str:
+            return "Error: old_str and new_str must be different"
 
-            if old_str != "" and old_str not in content:
-                return f"Error: old_str not found in file '{path}'"
-
-            new_content = content.replace(old_str, new_str)
-        else:
-            if old_str != "":
-                return f"Error: File '{path}' not found"
-
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            content = ""
-            new_content = new_str
-
-        if os.getenv("EDIT_APPROVAL", "enabled").lower() == "enabled":
-            diff_lines = generate_diff(content, new_content, path)
-
-            if diff_lines:
-                display_diff(diff_lines, path)
-
-                approval = input("Apply changes? (y/n): ").strip().lower()
-                if approval != "y":
-                    return "User cancelled edit. Ask user for new instructions."
-            else:
-                logger.info("No changes detected")
-                return "No changes to apply"
-
-        file_path.write_text(new_content, encoding="utf-8")
-        return f"Updated({path})"
+        edited_content = content.replace(old_str, new_str)
+        Path(path).write_text(edited_content, encoding="utf-8")
+        return f"Updated {path}"
+    except FileNotFoundError:
+        return f"Error: File '{path}' not found"
+    except PermissionError:
+        return f"Error: Permission denied accessing '{path}'"
     except Exception as e:
         return f"Error editing file '{path}': {str(e)}"
 
 
-BASH_CMDS_APPROVAL_REQUIRED = ["rm", "rmdir", "rm -rf", "git reset"]
-
-
 async def execute_bash(command: str) -> str:
     """Execute a bash command and return a formatted string with the results."""
-    if any([command.strip().startswith(x) for x in BASH_CMDS_APPROVAL_REQUIRED]):
-        approval = input(f"Cmd {command.strip()} requires approval. y to proceed): ")
-        if approval.strip().lower() != "y":
-            return "Command execution cancelled by user."
-
     try:
+        input = ["bash", "-c", command]
         result = subprocess.run(
-            ["bash", "-c", command],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=_sandbox_dir.get(),
+            input, capture_output=True, text=True, timeout=10, cwd=Path.cwd()
         )
-
-        result_str = f"STDOUT:\n{result.stdout}"
-        if result.stderr.strip():
-            result_str += f"\n\n[red]STDERR:\n{result.stderr}"
-        if result.returncode != 0:
-            result_str += f"\n\n[red]EXIT CODE: {result.returncode}[/red]"
-
-        logger.info(f"[cyan bold]Bash({command})[/cyan bold] {result_str}")
-        return result_str
+        return f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
     except Exception as e:
         return f"Error executing command: {str(e)}"
 
@@ -195,11 +149,7 @@ async def execute_bash(command: str) -> str:
 # -----------------------------------------------------------------------------
 
 
-async def task(
-    prompt: str,
-    description: str = "",
-    model: str = "claude-sonnet-4-5",
-) -> str:
+async def task(prompt: str, description: str, model: str = "claude-sonnet-4-5") -> str:
     """Task a sub-agent to work on a specific task autonomously.
 
     The sub-agent will work on the given task with access to file read/edit and bash execution tools.
@@ -219,17 +169,6 @@ async def task(
 
     Returns:
         Summary of what the sub-agent accomplished
-
-    Examples:
-        # Simple task with auto-generated description
-        await task("Find all TODO comments in Python files and create a summary")
-
-        # Complex task with explicit description
-        await task(
-            prompt="Refactor the authentication module to use OAuth2 instead of session tokens",
-            description="OAuth2 refactor",
-            model="claude-opus-4-20250514"
-        )
     """
 
     task_label = (

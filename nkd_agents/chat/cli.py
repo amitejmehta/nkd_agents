@@ -2,23 +2,40 @@ import asyncio
 import logging
 import os
 from pathlib import Path
+from typing import Coroutine
 
-from anthropic.types import TextBlockParam
+from anthropic.types import TextBlockParam, ToolResultBlockParam
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from nkd_agents.chat.config import msg_history, session
-from nkd_agents.llm import LLM, loop_queue
-from nkd_agents.logging import setup_logging
-from nkd_agents.tools import edit_file, execute_bash, read_file, task
+from nkd_agents.llm import LLM
+from nkd_agents.logging import configure_logging
+from nkd_agents.tools import edit_file, execute_bash, read_file
 
-setup_logging()
+configure_logging()
 logger = logging.getLogger(__name__)
 
 
-async def chat_loop(llm: LLM):
+async def loop(llm: LLM, q: asyncio.Queue[list[TextBlockParam]]) -> None:
+    """Loop that runs the LLM until it returns a response without tool calls."""
+    while True:
+        msg: list[TextBlockParam] | list[ToolResultBlockParam] = await q.get()
+
+        while True:
+            kwargs = {}
+            if os.getenv("ANTHROPIC_THINKING", "false").lower() == "true":
+                kwargs = {"type": "enabled", "budget_tokens": 2048}
+            text, tool_calls = await llm(msg, **kwargs)
+            logger.info(f"{llm.model}: {text}")
+            if not tool_calls:
+                break
+            msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])
+
+
+async def chat(llm: LLM) -> None:
     """Chat loop that prompts user for input and puts it in queue."""
     q: asyncio.Queue[list[TextBlockParam]] = asyncio.Queue()
-    loop_task: asyncio.Task = asyncio.create_task(loop_queue(llm, q))
+    loop_task: asyncio.Task = asyncio.create_task(loop(llm, q))
 
     try:
         while True:
@@ -34,15 +51,15 @@ async def async_main() -> None:
         secrets = [x.split("=", 1) for x in Path(".env").read_text().splitlines() if x]
         os.environ.update(secrets)
 
-    tools = [read_file, edit_file, execute_bash, task]
-    llm = LLM(tools=tools, msg_history=msg_history)
+    tools: list[Coroutine] = [read_file, edit_file, execute_bash]
+    llm = LLM(tools=tools, messages=msg_history)
 
     logger.info("[dim]\n\nnkd_agents\n\n'?' for tips.\n\n[/dim]")
 
     with patch_stdout(raw=True):
         while True:
             try:
-                await chat_loop(llm)
+                await chat(llm)
             except KeyboardInterrupt:
                 logger.info("[red]Interrupted[/red]")
             except EOFError:
@@ -52,3 +69,7 @@ async def async_main() -> None:
 
 def main() -> None:
     asyncio.run(async_main())
+
+
+if __name__ == "__main__":
+    main()
