@@ -9,18 +9,20 @@ logger = logging.getLogger(__name__)
 
 
 async def loop(llm: LLM, content: list[TextBlockParam], **kwargs) -> str:
-    """Given initial content, run LLM in loop until it returns a response without tool calls.
+    """Run LLM in a loop until it returns a response without tool calls.
 
-    Tool calls are executed in parallel.
+    This is a basic loop implementation that works for 99% of "Agent" use cases.
+    For more complex needs, simply copy and extend/edit this function.
 
-    Tool results are NOT yielded back to the queue - they must immediately follow
-    tool call messages to maintain proper message sequencing with the LLM.
-
-    The LLM is responsible for its own erro
+    Executes tool calls in parallel and maintains proper message sequencing.
 
     Args:
         llm: The LLM instance to use
         content: User content to send to the LLM
+        **kwargs: Additional arguments passed to LLM calls
+
+    Returns:
+        str: Final text response from the LLM
     """
     msg: list[TextBlockParam] | list[ToolResultBlockParam] = content
 
@@ -30,3 +32,19 @@ async def loop(llm: LLM, content: list[TextBlockParam], **kwargs) -> str:
         if not tool_calls:
             return text
         msg = await asyncio.gather(*[llm.execute_tool(tc) for tc in tool_calls])
+
+
+async def loop_queue(llm: LLM, q: asyncio.Queue[list[TextBlockParam]], **kwargs) -> str:
+    """Run the basic loop continuously, consuming messages from a queue.
+
+    See loop() for more implementation details. Useful for long-running agents
+    that process multiple incoming user requests sequentially.
+
+    Args:
+        llm: The LLM instance to use
+        q: Queue of user messages to process
+        **kwargs: Additional arguments passed to LLM calls
+    """
+    while True:
+        msg: list[TextBlockParam] | list[ToolResultBlockParam] = await q.get()
+        _ = await loop(llm, msg, **kwargs)

@@ -1,7 +1,7 @@
 import inspect
 import logging
 from pathlib import Path
-from typing import Any, Coroutine, Dict, Literal
+from typing import Any, Coroutine, Dict
 
 from jinja2 import Environment
 
@@ -9,7 +9,17 @@ logger = logging.getLogger(__name__)
 
 
 def parse_signature(func: Coroutine) -> tuple[dict[str, str], list[str]]:
-    """Get parameters and required parameters from a function signature."""
+    """Extract parameter schema and required fields from async function signature.
+
+    Converts Python type hints to JSON schema types for Anthropic tool definitions.
+    Excludes 'ctx' parameter from schema generation.
+
+    Returns:
+        tuple[dict[str, str], list[str]]: Parameter schema and list of required parameter names
+
+    Raises:
+        ValueError: If function is not async, missing docstring, or has invalid type hints
+    """
     if not inspect.iscoroutinefunction(func):
         raise ValueError(f"Tool {func} must be a coroutine.")
 
@@ -41,6 +51,13 @@ def parse_signature(func: Coroutine) -> tuple[dict[str, str], list[str]]:
 
 
 def jinja_required(var: Any, msg: str) -> Any:
+    """Jinja2 filter to enforce required variables in templates.
+
+    Raises:
+        ValueError: If variable is falsy
+    Returns:
+        Any: The variable if it is truthy
+    """
     if not var:
         raise ValueError(msg)
     return var
@@ -51,6 +68,15 @@ env.filters["required"] = jinja_required
 
 
 def render(template: Path, vars: Dict[str, Any]) -> str:
+    """Render a Jinja2 template file with provided variables.
+
+    Args:
+        template: Path to template file
+        vars: Variables to pass to template
+
+    Returns:
+        str: Rendered template content
+    """
     rendered = env.from_string(template.read_text()).render(**vars)
     logger.info(f"Rendered template:\n{template}")
     return rendered

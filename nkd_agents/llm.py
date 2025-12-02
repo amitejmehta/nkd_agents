@@ -21,15 +21,19 @@ logger = logging.getLogger(__name__)
 
 class LLM:
     """Anthropic LLM wrapper that:
-    1. Saves messages to a history.
-    2. Automatically generates Anthropic json schema from function signatures for tools.
-    3. Designed to be used in a loop with an input iterator for messages.
+    1. Maintains message history via a list
+    2. Automatically generates tool definitions from function signatures
 
-    Additional requirements:
-    1. Tools must be async functions with a description.
-    2. Tools should define error handling w/ useful messages sent to the LLM in case of errors.
-    3. Tool may accept context via a special 'wrapper' parameter which must be of type ContextWrapper[T]
-    where T is the type of your dependency class e.g. Context or any other python type.
+    Defaults:
+    - Model: claude-sonnet-4-5-20250929
+    - Client: AsyncAnthropic()
+    - Message History: []
+    - System Prompt, Tools, Context: None
+
+    Requirements:
+    1. Tools must be async functions with docstrings
+    2. Tools may accept dependencies via a 'ctx' parameter of type Context[T]
+    3. Tools are responsible for error handling, not the loop.
     """
 
     def __init__(
@@ -54,13 +58,12 @@ class LLM:
 
     @property
     def model(self) -> str:
-        """Get the model."""
+        """Return the model name."""
         return self._model
 
     @staticmethod
     def _to_tool_definition(func: Coroutine) -> ToolParam:
-        """Convert a function into a JSON schema for Anthropic tool usage."""
-
+        """Convert async function signature to Anthropic tool definition."""
         parameters, required = parse_signature(func)
 
         input_schema = {
@@ -77,9 +80,12 @@ class LLM:
         content: list[TextBlockParam] | list[ToolResultBlockParam] | str,
         **kwargs: Any,
     ) -> tuple[str, list[ToolUseBlock]]:
-        """Call the LLM given a list of input messages
-        Input messages are ALWAYS appended to the message history.
-        The output message is ALWAYS appended to the message history.
+        """Send a message to the LLM and return the response.
+
+        Automatically appends both input and output messages to message history.
+
+        Returns:
+            tuple[str, list[ToolUseBlock]]: Text response and any tool calls requested by the LLM
         """
         if isinstance(content, str):
             content = [TextBlockParam(text=content, type="text")]
@@ -111,7 +117,15 @@ class LLM:
         return text, tool_calls
 
     async def execute_tool(self, tool_call: ToolUseBlock) -> ToolResultBlockParam:
-        """Handle a single tool call from the LLM."""
+        """Execute a tool call and return the result.
+
+        Automatically injects context if the tool has a 'ctx' parameter.
+
+        Raises:
+            ValueError: If no tools are available
+        Returns:
+            ToolResultBlockParam: Tool execution result formatted for the LLM
+        """
         if self._tool_dict is None:
             raise ValueError("No tools available")
 
