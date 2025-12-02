@@ -26,4 +26,4 @@ USER agent
 WORKDIR /workspace
 
 # Default command  
-CMD ["python", "-m", "nkd_agents.cli.cli"]
+CMD ["python", "-m", "nkd_agents.chat.cli:main"]

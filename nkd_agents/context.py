@@ -5,8 +5,8 @@ T = TypeVar("T")
 
 
 @dataclass
-class ContextWrapper(Generic[T]):
-    """Wrapper for type safe safe access to dependencies"""
+class Context(Generic[T]):
+    """Type safe access to dependencies"""
 
     def __init__(self, ctx: T):
         self._ctx = ctx

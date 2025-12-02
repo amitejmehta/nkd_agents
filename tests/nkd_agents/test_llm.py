@@ -2,30 +2,30 @@ from functools import partial
 
 import pytest
 
-from nkd_agents.llm import parse_signature, to_json
+from nkd_agents.llm import LLM, parse_signature
 
 
-def test_to_json_without_docstring():
+def test_to_tool_definition_without_docstring():
     """Test that parse_signature raises ValueError when a function has no docstring."""
     with pytest.raises(ValueError) as excinfo:
 
-        def add(a: int, b: int):
+        async def add(a: int, b: int):
             return a + b
 
-        to_json(add)
+        LLM._to_tool_definition(add)
 
     assert "must have a description" in str(excinfo.value)
 
 
-def test_to_json_not_callable():
+def test_to_tool_definition_not_callable():
     with pytest.raises(ValueError) as excinfo:
-        to_json(1)
+        LLM._to_tool_definition(1)
 
-    assert "must be a function" in str(excinfo.value)
+    assert "must be a coroutine" in str(excinfo.value)
 
 
 def test_parse_signature_callable_with_type_hint_and_docstring():
-    def add(a: int, b: int) -> int:
+    async def add(a: int, b: int) -> int:
         """Add two numbers."""
         return a + b
 
@@ -35,7 +35,7 @@ def test_parse_signature_callable_with_type_hint_and_docstring():
 
 
 def test_parse_signature_without_type_hint_a():
-    def add(a, b: int):
+    async def add(a, b: int):
         """Add two numbers."""
         return a + b
 
@@ -46,7 +46,7 @@ def test_parse_signature_without_type_hint_a():
 
 
 def test_parse_signature_without_type_hint_b():
-    def add(a: int, b):
+    async def add(a: int, b):
         """Add two numbers."""
         return a + b
 
@@ -57,7 +57,7 @@ def test_parse_signature_without_type_hint_b():
 
 
 def test_parse_signature_with_partial():
-    def add(a: int, b: int) -> int:
+    async def add(a: int, b: int) -> int:
         """Add two numbers."""
         return a + b
 
@@ -66,7 +66,7 @@ def test_parse_signature_with_partial():
     assert required == ["a", "b"]
 
     add_5 = partial(add, 5)
-    assert add_5(10) == 15
+    # Note: Can't directly call async partial like this, but can still parse signature
     params, required = parse_signature(add_5)
     assert params == {"b": {"type": "integer"}}
     assert required == ["b"]
