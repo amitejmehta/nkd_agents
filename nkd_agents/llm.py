@@ -6,7 +6,8 @@ from typing import Any, Callable, Coroutine, TypeVar
 
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex, Omit, omit
 from anthropic.lib.streaming import BetaAsyncMessageStream
-from anthropic.types import CacheControlEphemeralParam
+
+# from anthropic.types import CacheControlEphemeralParam
 from anthropic.types.beta import (
     BetaMessageParam,
     BetaTextBlockParam,
