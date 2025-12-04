@@ -1,4 +1,3 @@
-from .llm import LLM
-from .loop import loop
+from .llm import llm, render
 
-__all__ = ["LLM", "loop"]
+__all__ = ["llm", "render"]
