@@ -1,11 +1,10 @@
 import difflib
 import logging
 import subprocess
-from contextvars import ContextVar
 from pathlib import Path
 
-from .llm import LLM
-from .loop import loop
+from .llm import llm
+from .logging import logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -24,33 +23,6 @@ def _display_diff(old: str, new: str, path: str) -> None:
     for line in diff:
         color = "[red]" if line[0] == "-" else "[green]" if line[0] == "+" else "[dim]"
         logger.info(f"{color}{line}[/{color.strip('[')}]")
-
-
-# -----------------------------------------------------------------------------
-# Coding Assistant Tools
-# -----------------------------------------------------------------------------
-
-
-content_var = ContextVar[str | None]("content", default=None)
-
-
-async def edit_string(old_str: str, new_str: str, content: str | None = None) -> str:
-    """Replace old_str with new_str in the content string.
-
-    Returns one of the following strings:
-    - The modified string on success
-    - "Error: No content to edit"
-    - "Error: old_str not found in content"
-    - "Error: old_str and new_str must be different"
-    """
-    content = content or content_var.get()
-    if content is None:
-        return "Error: No content to edit"
-    if old_str not in content:
-        return "Error: old_str not found in content"
-    if old_str == new_str:
-        return "Error: old_str and new_str must be different"
-    return content.replace(old_str, new_str)
 
 
 async def read_file(path: str) -> str:
@@ -141,13 +113,13 @@ async def subtask(prompt: str, task_label: str) -> str:
     Returns:
         Summary of what the sub-agent accomplishedRe
     """
-
-    logger.info(f"\n[bold]→ Starting subtask: '{task_label}'[/bold]")
-    agent = LLM(tools=[read_file, edit_file, execute_bash])
+    logging_context.set({"subtask": task_label})
 
     try:
-        response = await loop(agent, [{"type": "text", "text": prompt}])
-        logger.info(f"\n✓ subtask '{task_label}' complete: {response}\n")
+        tools = [read_file, edit_file, execute_bash]
+        thinking = {"type": "enabled", "budget_tokens": 2048}
+        response = await llm(prompt, tools=tools, thinking=thinking, max_tokens=20000)
+        logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
 
     except Exception as e:

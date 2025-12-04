@@ -61,8 +61,8 @@ def _(event):
 
 @kb.add("tab")
 def _(event):
-    current = int(os.getenv("ANTHROPIC_THINKING_BUDGET", "0")) > 0
-    os.environ["ANTHROPIC_THINKING_BUDGET"] = "2048" if not current else "0"
+    current = (os.getenv("ANTHROPIC_THINKING_BUDGET", "false")) == "true"
+    os.environ["ANTHROPIC_THINKING_BUDGET"] = str(not current).lower()
     logger.info(f"[dim]\nThinking: {'✓' if not current else '✗'}\n[/dim]")
 
 
