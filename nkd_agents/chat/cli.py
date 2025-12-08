@@ -46,16 +46,16 @@ async def async_main() -> None:
         secrets = [x.split("=", 1) for x in Path(".env").read_text().splitlines() if x]
         os.environ.update(secrets)
 
-    logger.info("[dim]\n\nnkd_agents\n\n'?' for tips.\n\n[/dim]")
+    logger.info("\033[38;5;242m\n\nnkd_agents\n\n'?' for tips.\n\n\033[0m")
 
     with patch_stdout(raw=True):
         while True:
             try:
                 await chat()
             except KeyboardInterrupt:
-                logger.info("[red]Interrupted[/red] What now?")
+                logger.info("\033[38;5;196mInterrupted\033[0m What now?")
             except EOFError:
-                logger.info("[dim]Exiting...[/dim]")
+                logger.info("\033[38;5;242mExiting...\033[0m")
                 break
 
 

@@ -3,6 +3,7 @@ import os
 
 from anthropic.types import MessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
+from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from rich.console import Console
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ kb = key_binding.KeyBindings()
 
 
 @kb.add("escape", "escape")
-def _(event):
+def _(event: KeyPressEvent):
     buffer = event.app.current_buffer
     buffer.text = ""
     buffer.cursor_position = 0
@@ -50,7 +51,7 @@ def _(event):
 
 
 @kb.add("?")
-def _(event):
+def _(event: KeyPressEvent):
     buffer = event.app.current_buffer
     if buffer.text == "":
         logger.info(get_help())
@@ -67,7 +68,7 @@ def _(event):
 
 
 @kb.add("c-l")
-def _(event):
+def _(event: KeyPressEvent):
     length = len(msg_history)
     logger.info(f"[dim]\n{msg_history}\n[/dim]")
     msg_history.clear()
