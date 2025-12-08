@@ -80,7 +80,8 @@ async def _llm(
                 await _print_stream(s)
 
             message = await s.get_final_message()
-            logger.info(f"{model} w/ settings: {settings}: {message.content}")
+            if not IS_TTY:
+                logger.info(f"{model} w/ settings: {settings}: {message.content}")
             return message
 
 
