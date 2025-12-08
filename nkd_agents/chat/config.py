@@ -47,17 +47,17 @@ def _(event: KeyPressEvent):
 
 
 @kb.add("s-tab")
-def _(event):
+def _(event: KeyPressEvent):
     current = os.getenv("ACCEPT_EDITS", "false").lower() == "true"
     os.environ["ACCEPT_EDITS"] = str(not current).lower()
     logger.info(f"{DIM}[Accept Edits: {'✓' if not current else '✗'}] {RESET}")
 
 
 @kb.add("tab")
-def _(event):
+def _(event: KeyPressEvent):
     current = (os.getenv("ANTHROPIC_THINKING_BUDGET", "false")) == "true"
     os.environ["ANTHROPIC_THINKING_BUDGET"] = str(not current).lower()
-    logger.info(f"{DIM}\nThinking: {'✓' if not current else '✗'}\n{RESET}")
+    logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
 
 styles = styles.Style.from_dict({"": "ansibrightblack"})
