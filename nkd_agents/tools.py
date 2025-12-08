@@ -4,7 +4,9 @@ import logging
 import shutil
 import subprocess
 import tempfile
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncGenerator
 
 from .llm import llm
 from .logging import IS_TTY, logging_context
@@ -32,33 +34,16 @@ _sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
 
 
 def _resolve_path(path: str) -> Path:
-    """Resolve a path, enforcing sandbox restrictions if active.
-
-    When sandbox is active, treats all paths as relative to the sandbox directory
-    and prevents escaping via .. or absolute paths.
-
-    Returns:
-        Resolved Path object
-
-    Raises:
-        ValueError: If path attempts to escape sandbox when sandbox is active
-    """
-    sandbox_dir = _sandbox_dir.get()
-
-    if sandbox_dir is None:
-        return Path(path).resolve()
-
-    resolved = (sandbox_dir / path).resolve()
-
-    try:
-        resolved.relative_to(sandbox_dir)
-    except ValueError:
+    """Resolve a path, enforcing sandbox restrictions if active."""
+    sd = _sandbox_dir.get()
+    resolved = Path(path).resolve() if sd is None else (sd / path).resolve()
+    if sd and not resolved.is_relative_to(sd):
         raise ValueError(f"Error: Path '{path}' is outside sandbox directory")
-
     return resolved
 
 
-async def sandbox():
+@asynccontextmanager
+async def sandbox() -> AsyncGenerator[Path, None]:
     """Async context manager that restricts file operations to a temporary directory.
 
     When active, all file paths are resolved relative to the sandbox directory
@@ -153,10 +138,9 @@ async def execute_bash(command: str) -> str:
         result = subprocess.run(
             input, capture_output=True, text=True, timeout=10, cwd=cwd
         )
-        logger.info(
-            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
-        )
-        return f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
+        result_str = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
+        logger.info(result_str)
+        return result_str
     except Exception as e:
         return f"Error executing command: {str(e)}"
 
@@ -176,7 +160,7 @@ async def subtask(prompt: str, task_label: str) -> str:
         task_label: Short 3-5 word summary of the task for progress tracking
 
     Returns:
-        Summary of what the sub-agent accomplishedRe
+        Response from the sub-agent
     """
     logging_context.set({"subtask": task_label})
 
