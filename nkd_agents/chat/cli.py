@@ -35,11 +35,10 @@ async def chat() -> None:
 
     try:
         while True:
+            print()
             text: str = await session.prompt_async("> ")
             print()
-            if text.strip() == "?":
-                logger.info(display_help_text())
-            elif text.strip() == "clear":
+            if text.strip() == "clear":
                 msg_history.clear()
                 logger.info(f"{DIM}Cleared {len(msg_history)} msgs{RESET}")
             elif text.strip():
@@ -53,14 +52,14 @@ async def main_async() -> None:
         secrets = [x.split("=", 1) for x in Path(".env").read_text().splitlines() if x]
         os.environ.update(secrets)
 
-    logger.info(f"{DIM}\n\nnkd_agents\n\n'?' for tips.\n\n{RESET}")
+    logger.info(f"{DIM}\n\nnkd_agents\n\n{display_help_text()}{RESET}")
 
     with patch_stdout(raw=True):
         while True:
             try:
                 await chat()
             except KeyboardInterrupt:
-                logger.info("\033[38;5;196mInterrupted\033[0m What now?")
+                logger.info(f"{DIM}...Interrupted. What now?{RESET}")
             except EOFError:
                 logger.info(f"{DIM}Exiting...{RESET}")
                 break
