@@ -16,16 +16,17 @@ logger = logging.getLogger(__name__)
 
 def _display_diff(old: str, new: str, path: str) -> None:
     """Display a colorized unified diff in the console."""
-    logger.info(f"\nUpdate: {path}")
-
     diff = difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="")
 
+    lines = [f"\nUpdate: {path}"]
     for line in diff:
         color = ""
         if IS_TTY:
             red, green = "\033[31m", "\033[32m"
             color = green if line[0] == "+" else red if line[0] == "-" else ""
-        logger.info(f"{color}{line}\033[0m")
+        lines.append(f"{color}{line}\033[0m")
+
+    logger.info("\n".join(lines))
 
 
 _sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
