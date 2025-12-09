@@ -8,23 +8,25 @@ from rich.console import Console
 
 logger = logging.getLogger(__name__)
 console = Console()
-
 DIM = "\033[38;5;242m"
 RESET = "\033[0m"
 
 HELP_TEXT_TEMPLATE = f"""
-{DIM}Anthropic API Key:{os.environ.get("ANTHROPIC_API_KEY", "")}
+{DIM}Anthropic API Key:{{masked_key}}
 
 Commands:
-- Type '?' and press Enter: show this help message
-- Type 'clear' and press Enter: clear message history
+- 'clear' - clear message history
 
 Keyboard Shortcuts:
-- 'Esc'+'Esc': clear input while typing
-- 'Tab': toggle thinking w/ `2048` token budget
+- enter - send message
+- esc+esc - clear all input while typing
+- ctrl+u - clear last line of typing
+- ctrl+c - interrupt LLM
+- ctrl+d - exit
+- tab - toggle thinking w/ `2048` token budget
 
 Coming Soon:
-- 'Shift+Tab': toggle edit approval{RESET}"""
+- shift+tab - toggle edit approval{RESET}\n"""
 
 
 def display_help_text() -> str:
@@ -46,11 +48,11 @@ def _(event: KeyPressEvent):
     buffer.cursor_position = 0
 
 
-@kb.add("s-tab")
-def _(event: KeyPressEvent):
-    current = os.getenv("ACCEPT_EDITS", "false").lower() == "true"
-    os.environ["ACCEPT_EDITS"] = str(not current).lower()
-    logger.info(f"{DIM}[Accept Edits: {'✓' if not current else '✗'}] {RESET}")
+# @kb.add("s-tab")
+# def _(event: KeyPressEvent):
+#     current = os.getenv("ACCEPT_EDITS", "false").lower() == "true"
+#     os.environ["ACCEPT_EDITS"] = str(not current).lower()
+#     logger.info(f"{DIM}[Accept Edits: {'✓' if not current else '✗'}] {RESET}")
 
 
 @kb.add("tab")
