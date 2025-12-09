@@ -18,12 +18,10 @@ The framework follows a simple but powerful architecture:
 
 ```
 nkd_agents/
-├── llm.py              # Core LLM wrapper class
-├── loop.py             # Basic loop implementions logic
-├── tools.py            # Basic tool implementations
+├── llm.py              # Core LLM wrapper with agentic loop
+├── tools.py            # Built-in tool implementations
 ├── context.py          # Type-safe dependency injection wrapper
 ├── logging.py          # Logging configuration helper
-├── util.py             # Misc util/helper functions
 └── chat/               # Chat w/ Claude Code style agent
     ├── cli.py          # Command-line interface
     └── config.py       # CLI configuration and session setup
