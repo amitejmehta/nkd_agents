@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Callable, Coroutine, TypeVar
 
@@ -16,7 +17,6 @@ from anthropic.types.beta import (
     BetaToolUseBlock,
 )
 from anthropic.types.beta.parsed_beta_message import ParsedBetaMessage
-from jinja2 import Environment
 from pydantic import BaseModel
 
 from .context import Context
@@ -26,27 +26,6 @@ logger = logging.getLogger(__name__)
 TModel = TypeVar("TModel", bound=BaseModel)
 
 
-def _jinja_required(var: Any, msg: str) -> Any:
-    """Validates that a variable is truthy, raising ValueError if not.
-    Example:
-        {{ my_var | required("my_var is required") }}
-    """
-    if not var:
-        raise ValueError(msg)
-    return var
-
-
-env = Environment()
-env.filters["required"] = _jinja_required
-
-
-def render(template: Path, vars: dict[str, Any]) -> str:
-    """Render a Jinja2 template w/ vars, supports the 'required' filter."""
-    rendered = env.from_string(template.read_text()).render(**vars)
-    logger.info(f"Rendered template: {template}")
-    return rendered
-
-
 def _client(model: str) -> AsyncAnthropic | AsyncAnthropicVertex:
     return AsyncAnthropicVertex() if "@" in model else AsyncAnthropic()
 
@@ -54,9 +33,10 @@ def _client(model: str) -> AsyncAnthropic | AsyncAnthropicVertex:
 async def _print_stream(stream: BetaAsyncMessageStream[TModel]) -> None:
     async for event in stream:
         if event.type == "text":
-            print(event.text, flush=True, end="")
+            sys.stderr.write(event.text)
         if event.type == "thinking":
-            print(event.thinking, flush=True, end="")
+            sys.stderr.write(event.thinking)
+    print()
 
 
 async def _llm(
