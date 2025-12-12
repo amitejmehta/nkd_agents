@@ -5,6 +5,8 @@ import sys
 IS_TTY = sys.stderr.isatty()
 logging_context = contextvars.ContextVar("logging_context", default={})
 
+COLOR, RESET = "\033[32m" if IS_TTY else "", "\033[0m"
+
 
 class ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
