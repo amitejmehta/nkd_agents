@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from .llm import llm
-from .logging import IS_TTY, logging_context
+from .logging import COLOR, IS_TTY, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,11 @@ _sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
 def _resolve_path(path: str) -> Path:
     """Resolve a path, enforcing sandbox restrictions if active."""
     sd = _sandbox_dir.get()
+    sd = sd.resolve() if sd is not None else None
+
+    if sd is not None and Path(path).is_absolute():
+        raise ValueError(f"Absolute paths not allowed, use relative paths: '{path}'")
+
     resolved = Path(path).resolve() if sd is None else (sd / path).resolve()
     if sd and not resolved.is_relative_to(sd):
         raise ValueError(f"Error: Path '{path}' is outside sandbox directory")
@@ -60,32 +65,23 @@ async def sandbox() -> AsyncGenerator[Path, None]:
 
 
 async def read_file(path: str) -> str:
-    """Read and return the contents of a file at the given path. Only works with files, not directories.
-
-    Returns one of the following strings:
-    - File contents on success
-    - "Error: File '{path}' not found"
-    - "Error: Permission denied accessing '{path}'"
-    - "Error: Path '{path}' is outside sandbox directory" (when sandbox is active)
-    """
+    """Read and return the contents of a file at the given path. Only works with files, not directories."""
+    logger.info(f"Reading: {COLOR} {path} \033[0m")
     try:
         resolved_path = _resolve_path(path)
         content = resolved_path.read_text(encoding="utf-8")
         logger.info(f"\nRead: {resolved_path}\n")
         return content
-    except FileNotFoundError:
-        return f"Error: File '{path}' not found"
-    except PermissionError:
-        return f"Error: Permission denied accessing '{path}'"
-    except ValueError as e:
-        return str(e)
     except Exception as e:
+        logger.error(f"Error reading file '{path}': {str(e)}")
         return f"Error reading file '{path}': {str(e)}"
 
 
 async def edit_file(path: str, old_str: str, new_str: str) -> str:
-    """Replace old_str with new_str in the file at path. For multiple edits to the same file,
-    call this function multiple times with smaller edits rather than one large edit.
+    """Create or edit an existing file.
+    For creation: provide the new path and set old_str=""
+    For editing: Replaces old_str with new_str in the file at the provided path.
+    For multiple edits to the same file, call this function multiple times with smaller edits rather than one large edit.
 
     Returns one of the following strings:
     - "Success: Updated {path}"
@@ -93,31 +89,30 @@ async def edit_file(path: str, old_str: str, new_str: str) -> str:
     - "Error: old_str not found in file content"
     - "Error: old_str and new_str must be different"
     - "Error: File '{path}' not found"
-    - "Error: Permission denied accessing '{path}'"
-    - "Error: Path '{path}' is outside sandbox directory" (when sandbox is active)
+    - "Error editing file '{path}': {error description}" (for other failures)
     """
+    if old_str == new_str:
+        return "Error: old_str and new_str must be different"
+
     try:
         resolved_path = _resolve_path(path)
-        content = resolved_path.read_text(encoding="utf-8")
-        if content == "":
-            return f"Error: File '{path}' is empty"
-        if old_str not in content:
-            return "Error: old_str not found in file content"
-        if old_str == new_str:
-            return "Error: old_str and new_str must be different"
 
-        edited_content = content.replace(old_str, new_str)
+        if resolved_path.exists():
+            content = resolved_path.read_text(encoding="utf-8")
+            if old_str != "" and old_str not in content:
+                return "Error: old_str not found in file content"
+            edited_content = content.replace(old_str, new_str)
+        else:
+            if old_str != "":
+                return f"Error: File '{path}' not found"
+            content, edited_content = "", new_str
+
         _display_diff(content, edited_content, str(resolved_path))
         resolved_path.write_text(edited_content, encoding="utf-8")
         logger.info(f"\nUpdated: {resolved_path}\n")
         return f"Success: Updated {resolved_path}"
-    except FileNotFoundError:
-        return f"Error: File '{path}' not found"
-    except PermissionError:
-        return f"Error: Permission denied accessing '{path}'"
-    except ValueError as e:
-        return str(e)
     except Exception as e:
+        logger.error(f"Error editing file '{path}': {str(e)}")
         return f"Error editing file '{path}': {str(e)}"
 
 
