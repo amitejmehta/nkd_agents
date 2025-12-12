@@ -124,7 +124,7 @@ async def execute_bash(command: str) -> str:
     - "STDOUT:\n{stdout}\nSTDERR:\n{stderr}\nEXIT CODE: {returncode}"
     - "Error executing command: {str(e)}"
     """
-    logger.info(f"Executing Bash: { '\033[32m' if IS_TTY else '' } {command} \033[0m")
+    logger.info(f"Executing Bash: {GREEN_TTY}{command}{RESET_TTY}")
     try:
         sandbox_dir = _sandbox_dir.get()
         cwd = sandbox_dir if sandbox_dir is not None else Path.cwd()
