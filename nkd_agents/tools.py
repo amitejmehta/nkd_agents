@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from .llm import llm
-from .logging import COLOR, IS_TTY, logging_context
+from .logging import GREEN_TTY, IS_TTY, RESET_TTY, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +66,11 @@ async def sandbox() -> AsyncGenerator[Path, None]:
 
 async def read_file(path: str) -> str:
     """Read and return the contents of a file at the given path. Only works with files, not directories."""
-    logger.info(f"Reading: {COLOR} {path} \033[0m")
+    logger.info(f"Reading: {GREEN_TTY} {path} {RESET_TTY}")
     try:
         resolved_path = _resolve_path(path)
         content = resolved_path.read_text(encoding="utf-8")
-        logger.info(f"\nRead: {resolved_path}\n")
+        logger.info(f"\nRead: {GREEN_TTY}{resolved_path}{RESET_TTY}\n")
         return content
     except Exception as e:
         logger.error(f"Error reading file '{path}': {str(e)}")
@@ -109,8 +109,7 @@ async def edit_file(path: str, old_str: str, new_str: str) -> str:
 
         _display_diff(content, edited_content, str(resolved_path))
         resolved_path.write_text(edited_content, encoding="utf-8")
-        logger.info(f"\nUpdated: {resolved_path}\n")
-        return f"Success: Updated {resolved_path}"
+        return f"Success: Updated{resolved_path}"
     except Exception as e:
         logger.error(f"Error editing file '{path}': {str(e)}")
         return f"Error editing file '{path}': {str(e)}"
