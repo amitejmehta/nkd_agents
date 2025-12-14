@@ -13,8 +13,8 @@ from openai.types.responses.parsed_response import (
 from openai.types.responses.response_input_item_param import FunctionCallOutput
 
 from .._types import TModel
-from ..context import Context
 from .._utils import extract_function_schema
+from ..context import Context
 
 logger = logging.getLogger(__name__)
 
