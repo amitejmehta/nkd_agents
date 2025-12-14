@@ -39,8 +39,8 @@ async def llm_queue(q: asyncio.Queue[list[BetaMessageParam]]) -> None:
         tools = [read_file, edit_file, execute_bash, subtask]
         thinking_on = os.getenv("ANTHROPIC_THINKING_BUDGET") == "true"
         thinking = {"type": "enabled", "budget_tokens": 2048} if thinking_on else omit
-        # _ = await llm(msg_history, max_tokens=20000, thinking=thinking, tools=tools)
-        _ = await llm(msg_history, model="openai:gpt-5.2-2025-12-11", tools=tools)
+        _ = await llm(msg_history, max_tokens=20000, thinking=thinking, tools=tools)
+        # _ = await llm(msg_history, model="openai:gpt-5.2-2025-12-11", tools=tools)
 
 
 async def chat() -> None:
