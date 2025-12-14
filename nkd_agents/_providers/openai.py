@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class OpenAILLM:
     """OpenAI provider implementation.
 
-    Implements the LLM protocol (see base.py) using OpenAI's best practices:
+    Implements the LLMProvider protocol using OpenAI's best practices:
     - Always uses streaming for immediate feedback
     - Leverages responses API with structured outputs when text_format is provided
     - Handles function calling with JSON string arguments (vs Anthropic's dict objects)
@@ -118,20 +118,20 @@ class OpenAILLM:
 
         return text, tool_calls
 
-    def format_response(
+    def format_assistant_message(
         self, response: ParsedResponse
     ) -> list[ParsedResponseOutputItem]:
-        """Format assistant response for addition to messages.
+        """Format assistant response into message(s) to append to conversation.
 
         For OpenAI, response output items are added directly to the input list.
         Returns a list of items to extend onto the messages list.
         """
         return response.output
 
-    def format_tool_results(
+    def format_tool_result_messages(
         self, tool_results: list[FunctionCallOutput]
     ) -> list[FunctionCallOutput]:
-        """Format tool results for addition to messages.
+        """Format tool results into message(s) to append to conversation.
 
         For OpenAI, tool results are added directly to the input list,
         not wrapped in a message structure.
