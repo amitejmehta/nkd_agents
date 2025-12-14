@@ -17,8 +17,8 @@ class LLM(Protocol):
 
     async def __call__(
         self,
-        model: str,
         messages: Any,
+        model: str,
         tools: Any,
         text_format: Any = None,
         **settings: Any,

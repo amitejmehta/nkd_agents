@@ -37,8 +37,8 @@ class OpenAILLM:
 
     async def __call__(
         self,
-        model: str,
         messages: list[dict[str, Any]],
+        model: str,
         tools: list[Callable[..., Coroutine[Any, Any, Any]]],
         text_format: type[TModel] | None = None,
         **settings: Any,

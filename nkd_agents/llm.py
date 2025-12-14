@@ -45,18 +45,19 @@ async def llm(
         msgs = [{"role": "user", "content": msgs}]
 
     provider_name, model_name = model.split(":", 1)
-    llm: LLM = PROVIDERS[provider_name]
+    _llm: LLM = PROVIDERS[provider_name]
 
-    tool_defs = [llm.to_json(t) for t in tools]
+    tool_defs = [_llm.to_json(t) for t in tools]
 
     while True:
-        content = await llm(model_name, msgs, tool_defs, text_format, **settings)
-        msgs.extend(llm.format_assistant_message(content))
-        text, tool_calls = llm.extract_text_and_tools(content)
+        # Call provider with: messages, model, tools, text_format
+        content = await _llm(msgs, model_name, tool_defs, text_format, **settings)
+        msgs.extend(_llm.format_assistant_message(content))
+        text, tool_calls = _llm.extract_text_and_tools(content)
 
         if not tool_calls:
             return text_format.model_validate_json(text) if text_format else text
 
-        coros = [llm.execute_tool(tc, tools, ctx) for tc in tool_calls]
+        coros = [_llm.execute_tool(tc, tools, ctx) for tc in tool_calls]
         tool_results = await asyncio.gather(*coros)
-        msgs.extend(llm.format_tool_result_messages(tool_results))
+        msgs.extend(_llm.format_tool_result_messages(tool_results))
