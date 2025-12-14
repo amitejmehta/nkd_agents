@@ -34,8 +34,8 @@ class AnthropicLLM:
 
     async def __call__(
         self,
-        model: str,
         messages: list[BetaMessageParam] | list[dict[str, Any]],
+        model: str,
         tools: list[BetaToolParam] | Omit = omit,
         text_format: type[TModel] | None = None,
         **settings: Any,
