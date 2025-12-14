@@ -19,21 +19,26 @@ msg_history: list[BetaMessageParam] = []
 kb = key_binding.KeyBindings()
 
 
+@kb.add("escape")
+def _(event: KeyPressEvent) -> None:
+    event.app.exit(exception=KeyboardInterrupt)
+
+
 @kb.add("escape", "escape")
-def _(event: KeyPressEvent):
+def _(event: KeyPressEvent) -> None:
     buffer = event.app.current_buffer
     buffer.text = ""
     buffer.cursor_position = 0
 
 
 @kb.add("tab")
-def _(event: KeyPressEvent):
+def _(event: KeyPressEvent) -> None:
     current = (os.getenv("ANTHROPIC_THINKING_BUDGET", "false")) == "true"
     os.environ["ANTHROPIC_THINKING_BUDGET"] = str(not current).lower()
     logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
 
-async def llm_queue(q: asyncio.Queue[list[BetaMessageParam]]) -> None:
+async def llm_queue(q: asyncio.Queue[BetaMessageParam]) -> None:
     while True:
         msg_history.append(await q.get())
         tools = [read_file, edit_file, execute_bash, subtask]
@@ -54,11 +59,10 @@ async def chat() -> None:
     try:
         while True:
             text: str = await session.prompt_async("> ")
-            if text.strip() == "clear":
-                msg_history.clear()
-                logger.info(f"{DIM}Cleared {len(msg_history)} msgs{RESET}")
-            elif text.strip():
+            if text.strip():
                 await q.put({"role": "user", "content": text.strip()})
+    except KeyboardInterrupt:
+        logger.info(f"{RED}...Interrupted. What now?{RESET}")
     finally:
         loop_task.cancel()
 
@@ -68,21 +72,21 @@ async def main_async() -> None:
         secrets = [x.split("=", 1) for x in Path(".env").read_text().splitlines() if x]
         os.environ.update(secrets)
 
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    masked_key = f"...{api_key[-4:]}" if api_key else f"{RED}Not Set{DIM}"
+
     logger.info(
-        f"{DIM}\n\nnkd_agents\n\n"
-        f"API Key: {os.environ.get('ANTHROPIC_API_KEY', 'Not Set')}\n"
-        "clear: clear history\n"
-        "esc esc: clear input | ctrl+u: clear line\n"
-        "ctrl+c: interrupt | ctrl+d: exit\n"
-        "tab: toggle thinking\n"
-        f"{RESET}"
+        f"{DIM}\n\nnkd_agents\n\nAPI Key: {masked_key}\n\n"
+        "'tab':     thinking\n"
+        "'esc':     interrupt\n"
+        "'esc esc': clear input\n"
+        "'ctrl+u':  clear line\n"
+        f"'ctrl+d':  exit{RESET}\n"
     )
 
     while True:
         try:
             await chat()
-        except KeyboardInterrupt:
-            logger.info(f"{RED}...Interrupted. What now?{RESET}")
         except EOFError:
             logger.info(f"{DIM}Exiting...{RESET}")
             break
