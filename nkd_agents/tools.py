@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from .llm import llm
-from .logging import GREEN_TTY, RED_TTY, RESET_TTY, logging_context
+from .logging import GREEN, RED, RESET, logging_context
 
 logger = logging.getLogger(__name__)
 _sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
@@ -23,8 +23,8 @@ def _display_diff(old: str, new: str, path: str) -> None:
 
     lines = [f"\nUpdate: {path}"]
     for line in diff:
-        color = GREEN_TTY if line[0] == "+" else RED_TTY if line[0] == "-" else ""
-        lines.append(f"{color}{line}{RESET_TTY}")
+        color = GREEN if line[0] == "+" else RED if line[0] == "-" else ""
+        lines.append(f"{color}{line}{RESET}")
 
     logger.info("\n".join(lines))
 
@@ -64,7 +64,7 @@ async def read_file(path: str) -> str:
     try:
         resolved_path = _resolve_path(path)
         content = resolved_path.read_text(encoding="utf-8")
-        logger.info(f"\nRead: {GREEN_TTY}{resolved_path}{RESET_TTY}\n")
+        logger.info(f"\nRead: {GREEN}{resolved_path}{RESET}\n")
         return content
     except Exception as e:
         logger.error(f"Error reading file '{path}': {str(e)}")
@@ -118,7 +118,7 @@ async def execute_bash(command: str) -> str:
     - "STDOUT:\n{stdout}\nSTDERR:\n{stderr}\nEXIT CODE: {returncode}"
     - "Error executing command: {str(e)}"
     """
-    logger.info(f"Executing Bash: {GREEN_TTY}{command}{RESET_TTY}")
+    logger.info(f"Executing Bash: {GREEN}{command}{RESET}")
     try:
         sandbox_dir = _sandbox_dir.get()
         cwd = sandbox_dir if sandbox_dir is not None else Path.cwd()
