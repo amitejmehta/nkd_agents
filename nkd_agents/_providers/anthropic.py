@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AnthropicLLM:
     """Anthropic Claude provider implementation.
 
-    Implements the LLM protocol (see base.py) using Anthropic's best practices:
+    Implements the LLMProvider protocol using Anthropic's best practices:
     - Always uses streaming for immediate feedback
     - Leverages beta structured outputs API when text_format is provided
     - Handles both standard Anthropic and Vertex AI clients
@@ -39,7 +39,7 @@ class AnthropicLLM:
         tools: list[BetaToolParam] | Omit = omit,
         text_format: type[TModel] | None = None,
         **settings: Any,
-    ) -> ParsedBetaMessage:
+    ) -> ParsedBetaMessage[TModel]:
         """Make the raw API call to Anthropic."""
         async with self._client(model) as client:
             async with client.beta.messages.stream(
@@ -103,18 +103,20 @@ class AnthropicLLM:
 
         return text, tool_calls
 
-    def format_response(self, response: ParsedBetaMessage) -> list[BetaMessageParam]:
-        """Format assistant response for addition to messages.
+    def format_assistant_message(
+        self, response: ParsedBetaMessage
+    ) -> list[BetaMessageParam]:
+        """Format assistant response into message(s) to append to conversation.
 
         For Anthropic, the response content is wrapped in an assistant message.
         Returns a list of message dicts to extend onto the messages list.
         """
         return [{"role": "assistant", "content": response.content}]
 
-    def format_tool_results(
+    def format_tool_result_messages(
         self, tool_results: list[BetaToolResultBlockParam]
     ) -> list[BetaMessageParam]:
-        """Format tool results for addition to messages.
+        """Format tool results into message(s) to append to conversation.
 
         For Anthropic, tool results must be wrapped in a user message.
         Returns a list of message dicts to extend onto the messages list.

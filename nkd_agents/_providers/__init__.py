@@ -1,4 +1,4 @@
-"""Provider implementations for different LLM APIs."""
+"""LLM provider implementations."""
 
 from .anthropic import AnthropicLLM
 from .base import LLM
@@ -10,4 +10,4 @@ PROVIDERS: dict[str, LLM] = {
     "openai": OpenAILLM(),
 }
 
-__all__ = ["AnthropicLLM", "OpenAILLM", "PROVIDERS", "LLM"]
+__all__ = ["AnthropicLLM", "OpenAILLM", "LLMProvider", "PROVIDERS"]
