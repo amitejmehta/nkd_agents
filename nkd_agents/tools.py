@@ -9,9 +9,12 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from .llm import llm
-from .logging import GREEN_TTY, IS_TTY, RESET_TTY, logging_context
+from .logging import GREEN_TTY, RED_TTY, RESET_TTY, logging_context
 
 logger = logging.getLogger(__name__)
+_sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
+    "sandbox_dir", default=None
+)
 
 
 def _display_diff(old: str, new: str, path: str) -> None:
@@ -20,18 +23,10 @@ def _display_diff(old: str, new: str, path: str) -> None:
 
     lines = [f"\nUpdate: {path}"]
     for line in diff:
-        color = ""
-        if IS_TTY:
-            red, green = "\033[31m", "\033[32m"
-            color = green if line[0] == "+" else red if line[0] == "-" else ""
-        lines.append(f"{color}{line}\033[0m")
+        color = GREEN_TTY if line[0] == "+" else RED_TTY if line[0] == "-" else ""
+        lines.append(f"{color}{line}{RESET_TTY}")
 
     logger.info("\n".join(lines))
-
-
-_sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
-    "sandbox_dir", default=None
-)
 
 
 def _resolve_path(path: str) -> Path:
@@ -66,7 +61,6 @@ async def sandbox() -> AsyncGenerator[Path, None]:
 
 async def read_file(path: str) -> str:
     """Read and return the contents of a file at the given path. Only works with files, not directories."""
-    logger.info(f"Reading: {GREEN_TTY} {path} {RESET_TTY}")
     try:
         resolved_path = _resolve_path(path)
         content = resolved_path.read_text(encoding="utf-8")
