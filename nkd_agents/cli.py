@@ -12,59 +12,73 @@ from nkd_agents.llm import llm
 from nkd_agents.logging import DIM, RED, RESET, configure_logging
 from nkd_agents.tools import edit_file, execute_bash, read_file, subtask
 
-configure_logging()
 logger = logging.getLogger(__name__)
 
-msg_history: list[BetaMessageParam] = []
-kb = key_binding.KeyBindings()
 
+class ChatSession:
+    def __init__(self) -> None:
+        self._msgs: list[BetaMessageParam] = []
+        self._q = asyncio.Queue()
+        self._llm_task = None
+        self._kb = self._create_key_bindings()
+        style = styles.Style.from_dict({"": "ansibrightblack"})
+        self._session = PromptSession(key_bindings=self._kb, style=style)
 
-@kb.add("escape")
-def _(event: KeyPressEvent) -> None:
-    event.app.exit(exception=KeyboardInterrupt)
+    def _create_key_bindings(self) -> key_binding.KeyBindings:
+        kb = key_binding.KeyBindings()
 
+        @kb.add("c-k")
+        def _(event: KeyPressEvent) -> None:
+            logger.info(f"{DIM}Cleared {len(self._msgs)} msgs{RESET}")
+            self._msgs.clear()
 
-@kb.add("escape", "escape")
-def _(event: KeyPressEvent) -> None:
-    buffer = event.app.current_buffer
-    buffer.text = ""
-    buffer.cursor_position = 0
+        @kb.add("escape")
+        def _(event: KeyPressEvent) -> None:
+            if self._llm_task and not self._llm_task.done():
+                self._llm_task.cancel()
+                logger.info(f"{RED}...Interrupted. What now?{RESET}")
+            event.app.exit()
 
+        @kb.add("escape", "escape")
+        def _(event: KeyPressEvent) -> None:
+            buffer = event.app.current_buffer
+            buffer.text = ""
 
-@kb.add("tab")
-def _(event: KeyPressEvent) -> None:
-    current = (os.getenv("ANTHROPIC_THINKING_BUDGET", "false")) == "true"
-    os.environ["ANTHROPIC_THINKING_BUDGET"] = str(not current).lower()
-    logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
+        @kb.add("tab")
+        def _(event: KeyPressEvent) -> None:
+            current = os.getenv("ANTHROPIC_THINKING_BUDGET") == "true"
+            os.environ["ANTHROPIC_THINKING_BUDGET"] = str(not current).lower()
+            logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
+        return kb
 
-async def llm_queue(q: asyncio.Queue[BetaMessageParam]) -> None:
-    while True:
-        msg_history.append(await q.get())
-        tools = [read_file, edit_file, execute_bash, subtask]
-        thinking_on = os.getenv("ANTHROPIC_THINKING_BUDGET") == "true"
-        thinking = {"type": "enabled", "budget_tokens": 2048} if thinking_on else omit
-        _ = await llm(msg_history, max_tokens=20000, thinking=thinking, tools=tools)
-        # _ = await llm(msg_history, model="openai:gpt-5.2-2025-12-11", tools=tools)
-
-
-async def chat() -> None:
-    """Chat loop that prompts user for input and puts it in queue."""
-    q: asyncio.Queue[list[BetaMessageParam]] = asyncio.Queue()
-    loop_task: asyncio.Task = asyncio.create_task(llm_queue(q))
-
-    style = styles.Style.from_dict({"": "ansibrightblack"})
-    session = PromptSession(key_bindings=kb, style=style)
-
-    try:
+    async def _llm_loop(self) -> None:
         while True:
-            text: str = await session.prompt_async("> ")
-            if text.strip():
-                await q.put({"role": "user", "content": text.strip()})
-    except KeyboardInterrupt:
-        logger.info(f"{RED}...Interrupted. What now?{RESET}")
-    finally:
-        loop_task.cancel()
+            self._msgs.append(await self._q.get())
+
+            settings = {"max_tokens": 20000, "thinking": omit}
+            if os.getenv("ANTHROPIC_THINKING_BUDGET") == "true":
+                settings["thinking"] = {"type": "enabled", "budget_tokens": 2048}
+
+            tools = [read_file, edit_file, execute_bash, subtask]
+            task = asyncio.create_task(llm(self._msgs, tools=tools, **settings))
+            self._llm_task = task
+
+            try:
+                _ = await self._llm_task
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._llm_task = None
+
+    async def run(self) -> None:
+        """Chat loop that prompts user for input and puts it in queue."""
+        _ = asyncio.create_task(self._llm_loop())
+
+        while True:
+            text: str = await self._session.prompt_async("> ")
+            if text and text.strip():
+                await self._q.put({"role": "user", "content": text.strip()})
 
 
 async def main_async() -> None:
@@ -75,21 +89,21 @@ async def main_async() -> None:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     masked_key = f"...{api_key[-4:]}" if api_key else f"{RED}Not Set{DIM}"
 
+    configure_logging()
     logger.info(
         f"{DIM}\n\nnkd_agents\n\nAPI Key: {masked_key}\n\n"
         "'tab':     thinking\n"
         "'esc':     interrupt\n"
         "'esc esc': clear input\n"
         "'ctrl+u':  clear line\n"
+        "'ctrl+k':  clear history\n"
         f"'ctrl+d':  exit{RESET}\n"
     )
 
-    while True:
-        try:
-            await chat()
-        except EOFError:
-            logger.info(f"{DIM}Exiting...{RESET}")
-            break
+    try:
+        await ChatSession().run()
+    except (KeyboardInterrupt, EOFError):
+        logger.info(f"{DIM}Exiting...{RESET}")
 
 
 def main() -> None:
