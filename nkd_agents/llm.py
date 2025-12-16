@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any, Callable, Coroutine, overload
 
-from ._providers import LLM, PROVIDERS
+from ._providers import PROVIDERS
 from ._types import TModel
 from .context import Context
 
@@ -45,13 +45,13 @@ async def llm(
         msgs = [{"role": "user", "content": msgs}]
 
     provider_name, model_name = model.split(":", 1)
-    _llm: LLM = PROVIDERS[provider_name]
+    _llm = PROVIDERS[provider_name]
 
     tool_defs = [_llm.to_json(t) for t in tools]
 
     while True:
-        # Call provider with: messages, model, tools, text_format
-        content = await _llm(msgs, model_name, tool_defs, text_format, **settings)
+        # Call llm with: messages, model, tools, text_format
+        content = await _llm.call(msgs, model_name, tool_defs, text_format, **settings)
         msgs.extend(_llm.format_assistant_message(content))
         text, tool_calls = _llm.extract_text_and_tools(content)
 
