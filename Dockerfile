@@ -1,24 +1,26 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+# Add uv to PATH early
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Install runtime dependencies and uv
+RUN apk add --no-cache \
     bash \
     git \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create non-root user
-RUN groupadd -g 1000 agent && \
-    useradd -u 1000 -g agent -m -s /bin/bash agent
+RUN addgroup -g 1000 agent && \
+    adduser -u 1000 -G agent -D -s /bin/bash agent
 
 # Copy only the package files needed for installation
 COPY pyproject.toml /tmp/
 COPY nkd_agents/ /tmp/nkd_agents/
 
-# Install the package
+# Install the package using uv
 WORKDIR /tmp
-RUN pip install --no-cache-dir -e .
+RUN uv pip install --system -e .
 
 # Create workspace directory and switch to non-root user
 RUN mkdir -p /workspace && chown agent:agent /workspace
@@ -26,4 +28,4 @@ USER agent
 WORKDIR /workspace
 
 # Default command  
-CMD ["python", "-m", "nkd_agents.chat.cli:main"]
+CMD ["nkd_agents"]
