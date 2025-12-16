@@ -107,31 +107,6 @@ line-ending = "auto"
 "__init__.py" = ["I"]
 "__main__.py" = ["I"]
 
-[tool.mypy]
-install_types = true
-non_interactive = true
-
-# Treat type checking errors as warnings
-show_error_codes = true
-
-# Treat missing imports as warnings
-ignore_missing_imports = true
-
-# Check untyped function definitions
-check_untyped_defs = true
-
-# Warn about casting an expression to its inferred type
-warn_redundant_casts = true
-
-# Warn about unneeded # type: ignore comments
-warn_unused_ignores = true
-
-# Disallow any untyped definitions and calls
-#disallow_untyped_defs = true
-
-# Disallow sub-classing any untyped classes
-disallow_subclassing_any = true
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
