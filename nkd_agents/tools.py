@@ -67,19 +67,25 @@ async def read_file(path: str) -> str:
         logger.info(f"\nRead: {GREEN}{resolved_path}{RESET}\n")
         return content
     except Exception as e:
-        logger.error(f"Error reading file '{path}': {str(e)}")
+        logger.info(f"Error reading file '{path}': {str(e)}")
         return f"Error reading file '{path}': {str(e)}"
 
 
-async def edit_file(path: str, old_str: str, new_str: str) -> str:
+async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> str:
     """Create or edit an existing file.
     For creation: provide the new path and set old_str=""
-    For editing: Replaces old_str with new_str in the file at the provided path.
+    For editing: Replaces occurrences of old_str with new_str in the file at the provided path.
+    By default, only the first occurrence is replaced. Set count=-1 to replace all occurrences.
     For multiple edits to the same file, call this function multiple times with smaller edits rather than one large edit.
+
+    Args:
+        path: Relative path to the file
+        old_str: String to search for (use "" for file creation)
+        new_str: String to replace with
+        count: Maximum number of occurrences to replace (default: 1, use -1 for all)
 
     Returns one of the following strings:
     - "Success: Updated {path}"
-    - "Error: File '{path}' is empty"
     - "Error: old_str not found in file content"
     - "Error: old_str and new_str must be different"
     - "Error: File '{path}' not found"
@@ -95,7 +101,7 @@ async def edit_file(path: str, old_str: str, new_str: str) -> str:
             content = resolved_path.read_text(encoding="utf-8")
             if old_str != "" and old_str not in content:
                 return "Error: old_str not found in file content"
-            edited_content = content.replace(old_str, new_str)
+            edited_content = content.replace(old_str, new_str, count)
         else:
             if old_str != "":
                 return f"Error: File '{path}' not found"
@@ -105,7 +111,7 @@ async def edit_file(path: str, old_str: str, new_str: str) -> str:
         resolved_path.write_text(edited_content, encoding="utf-8")
         return f"Success: Updated{resolved_path}"
     except Exception as e:
-        logger.error(f"Error editing file '{path}': {str(e)}")
+        logger.info(f"Error editing file '{path}': {str(e)}")
         return f"Error editing file '{path}': {str(e)}"
 
 
