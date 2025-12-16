@@ -1,0 +1,32 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        docker build -t nkd-agents:test .
+    
+    - name: Sanity check - Start container and verify it runs
+      run: |
+        # Start container in background with a 5-second timeout
+        # Exit code 124 means timeout, which is expected since it waits for input
+        timeout 5s docker run --rm nkd-agents:test || EXIT_CODE=$?
+        
+        if [ "${EXIT_CODE:-0}" -eq 124 ]; then
+          echo "✓ Container started successfully and is waiting for input"
+          exit 0
+        else
+          echo "✗ Container failed with unexpected exit code: ${EXIT_CODE:-0}"
+          exit 1
+        fi
