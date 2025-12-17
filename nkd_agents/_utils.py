@@ -19,10 +19,10 @@ def extract_function_schema(
 
     params, req = {}, []
     for param in inspect.signature(func).parameters.values():
-        if param.annotation is not inspect._empty and param.annotation not in type_map:
-            raise ValueError(f"Unsupported type in {func.__name__}: {param.annotation}")
-
         if param.name not in exclude_params:
+            if param.annotation is not inspect._empty and param.annotation not in type_map:
+                raise ValueError(f"Unsupported type in {func.__name__}: {param.annotation}")
+            
             params[param.name] = {"type": type_map.get(param.annotation, "string")}
             if param.default is inspect._empty:
                 req.append(param.name)

@@ -14,7 +14,6 @@ from openai.types.responses.response_input_item_param import FunctionCallOutput
 
 from .._types import TModel
 from .._utils import extract_function_schema
-from ..context import Context
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +66,7 @@ def to_json(func: Callable[..., Coroutine[Any, Any, Any]]) -> FunctionToolParam:
 async def execute_tool(
     tool_call: ParsedResponseFunctionToolCall,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]],
-    ctx: Context[Any] | None = None,
+    ctx: Any = None,
 ) -> FunctionCallOutput:
     """Execute a tool call and return the result in OpenAI's format."""
     tool = next(t for t in tools if t.__name__ == tool_call.name)
