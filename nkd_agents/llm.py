@@ -3,7 +3,6 @@ from typing import Any, Callable, Coroutine, overload
 
 from ._providers import PROVIDERS
 from ._types import TModel
-from .context import Context
 
 
 @overload
@@ -13,7 +12,7 @@ async def llm(
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
     text_format: type[TModel],
-    ctx: Context[Any] | None = ...,
+    ctx: Any = ...,
     **settings: Any,
 ) -> TModel: ...
 @overload
@@ -23,7 +22,7 @@ async def llm(
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
     text_format: type[TModel] | None = ...,
-    ctx: Context[Any] | None = ...,
+    ctx: Any = ...,
     **settings: Any,
 ) -> str: ...
 
@@ -34,7 +33,7 @@ async def llm(
     model: str = "anthropic:claude-sonnet-4-5-20250929",
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = [],
     text_format: type[TModel] | None = None,
-    ctx: Context[Any] | None = None,
+    ctx: Any = None,
     **settings: Any,
 ) -> str | TModel:
     """Run LLM in agentic loop, executing tools until final response.

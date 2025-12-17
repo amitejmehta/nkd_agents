@@ -14,7 +14,6 @@ from anthropic.types.beta.parsed_beta_message import ParsedBetaMessage
 
 from .._types import TModel
 from .._utils import extract_function_schema
-from ..context import Context
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,7 @@ def to_json(
 async def execute_tool(
     tool_call: BetaToolUseBlock,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]],
-    ctx: Context[Any] | None = None,
+    ctx: Any = None,
 ) -> BetaToolResultBlockParam:
     """Execute a tool call and return the result in Anthropic's format."""
     tool = next(t for t in tools if t.__name__ == tool_call.name)
