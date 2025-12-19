@@ -11,6 +11,8 @@ With this: interruption becomes transparent, conversation flows naturally.
 
 import asyncio
 
+from anthropic.types.beta import BetaMessageParam
+
 from nkd_agents.llm import llm
 
 tool_running = asyncio.Event()
@@ -33,7 +35,9 @@ async def main():
     print("Test: GRACEFUL INTERRUPTION - Conversation continues naturally")
     print("=" * 70 + "\n")
 
-    messages = [{"role": "user", "content": "Analyze the sales_data dataset"}]
+    messages: list[BetaMessageParam] = [
+        {"role": "user", "content": "Analyze the sales_data dataset"}
+    ]
 
     # Start task, then interrupt mid-execution
     task = asyncio.create_task(

@@ -33,7 +33,7 @@ async def call(
     """Make the raw API call to Anthropic."""
     if client is None:
         client = _default_client(model)
-    
+
     async with client:
         async with client.beta.messages.stream(
             model=model,
