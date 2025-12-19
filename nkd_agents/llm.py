@@ -12,7 +12,6 @@ async def llm(
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
     text_format: type[TModel],
-    ctx: Any = ...,
     **settings: Any,
 ) -> TModel: ...
 @overload
@@ -22,7 +21,6 @@ async def llm(
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
     text_format: type[TModel] | None = ...,
-    ctx: Any = ...,
     **settings: Any,
 ) -> str: ...
 
@@ -33,7 +31,6 @@ async def llm(
     model: str = "anthropic:claude-sonnet-4-5-20250929",
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = [],
     text_format: type[TModel] | None = None,
-    ctx: Any = None,
     **settings: Any,
 ) -> str | TModel:
     """Run LLM in agentic loop, executing tools until final response.
@@ -57,6 +54,6 @@ async def llm(
         if not tool_calls:
             return text_format.model_validate_json(text) if text_format else text
 
-        coros = [_llm.execute_tool(tc, tools, ctx) for tc in tool_calls]
+        coros = [_llm.execute_tool(tc, tools) for tc in tool_calls]
         tool_results = await asyncio.gather(*coros)
         msgs.extend(_llm.format_tool_result_messages(tool_results))

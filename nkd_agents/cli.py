@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from anthropic import omit
+from anthropic import NOT_GIVEN, omit
 from anthropic.types.beta import BetaMessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 class ChatSession:
     def __init__(self) -> None:
         self._msgs: list[BetaMessageParam] = []
+
+        self._system = NOT_GIVEN
+        if Path("CLAUDE.md").exists():
+            self._system = Path("CLAUDE.md").read_text(encoding="utf-8")
+
         self._q = asyncio.Queue()
         self._llm_task = None
         self._kb = self._create_key_bindings()
@@ -61,7 +66,9 @@ class ChatSession:
                 settings["thinking"] = {"type": "enabled", "budget_tokens": 2048}
 
             tools = [read_file, edit_file, execute_bash, subtask]
-            task = asyncio.create_task(llm(self._msgs, tools=tools, **settings))
+            task = asyncio.create_task(
+                llm(self._msgs, system=self._system, tools=tools, **settings)
+            )
             self._llm_task = task
 
             try:

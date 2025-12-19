@@ -1,20 +1,12 @@
-import contextvars
 import difflib
 import logging
-import shutil
 import subprocess
-import tempfile
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
 
 from .llm import llm
 from .logging import GREEN, RED, RESET, logging_context
 
 logger = logging.getLogger(__name__)
-_sandbox_dir: contextvars.ContextVar[Path | None] = contextvars.ContextVar(
-    "sandbox_dir", default=None
-)
 
 
 def _display_diff(old: str, new: str, path: str) -> None:
@@ -29,40 +21,10 @@ def _display_diff(old: str, new: str, path: str) -> None:
     logger.info("\n".join(lines))
 
 
-def _resolve_path(path: str) -> Path:
-    """Resolve a path, enforcing sandbox restrictions if active."""
-    sd = _sandbox_dir.get()
-    sd = sd.resolve() if sd is not None else None
-
-    if sd is not None and Path(path).is_absolute():
-        raise ValueError(f"Absolute paths not allowed, use relative paths: '{path}'")
-
-    resolved = Path(path).resolve() if sd is None else (sd / path).resolve()
-    if sd and not resolved.is_relative_to(sd):
-        raise ValueError(f"Error: Path '{path}' is outside sandbox directory")
-    return resolved
-
-
-@asynccontextmanager
-async def sandbox() -> AsyncGenerator[Path, None]:
-    """Async context manager that restricts file operations to a temporary directory.
-
-    When active, all file paths are resolved relative to the sandbox directory
-    and cannot escape it. The temporary directory is cleaned up on exit.
-    """
-    sandbox_path = Path(tempfile.mkdtemp())
-    token = _sandbox_dir.set(sandbox_path)
-    try:
-        yield sandbox_path
-    finally:
-        _sandbox_dir.reset(token)
-        shutil.rmtree(sandbox_path, ignore_errors=True)
-
-
 async def read_file(path: str) -> str:
     """Read and return the contents of a file at the given path. Only works with files, not directories."""
     try:
-        resolved_path = _resolve_path(path)
+        resolved_path = Path(path).resolve()
         content = resolved_path.read_text(encoding="utf-8")
         logger.info(f"\nRead: {GREEN}{resolved_path}{RESET}\n")
         return content
@@ -79,7 +41,7 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
     For multiple edits to the same file, call this function multiple times with smaller edits rather than one large edit.
 
     Args:
-        path: Relative path to the file
+        path: Path to the file
         old_str: String to search for (use "" for file creation)
         new_str: String to replace with
         count: Maximum number of occurrences to replace (default: 1, use -1 for all)
@@ -95,7 +57,7 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         return "Error: old_str and new_str must be different"
 
     try:
-        resolved_path = _resolve_path(path)
+        resolved_path = Path(path).resolve()
 
         if resolved_path.exists():
             content = resolved_path.read_text(encoding="utf-8")
@@ -108,8 +70,9 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
             content, edited_content = "", new_str
 
         _display_diff(content, edited_content, str(resolved_path))
+        resolved_path.parent.mkdir(parents=True, exist_ok=True)
         resolved_path.write_text(edited_content, encoding="utf-8")
-        return f"Success: Updated{resolved_path}"
+        return f"Success: Updated {resolved_path}"
     except Exception as e:
         logger.info(f"Error editing file '{path}': {str(e)}")
         return f"Error editing file '{path}': {str(e)}"
@@ -118,20 +81,14 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
 async def execute_bash(command: str) -> str:
     """Execute a bash command and return the results.
 
-    When sandbox is active, the command runs with cwd set to the sandbox directory.
-
     Returns one of the following strings:
     - "STDOUT:\n{stdout}\nSTDERR:\n{stderr}\nEXIT CODE: {returncode}"
     - "Error executing command: {str(e)}"
     """
     logger.info(f"Executing Bash: {GREEN}{command}{RESET}")
     try:
-        sandbox_dir = _sandbox_dir.get()
-        cwd = sandbox_dir if sandbox_dir is not None else Path.cwd()
-
-        input = ["bash", "-c", command]
         result = subprocess.run(
-            input, capture_output=True, text=True, timeout=10, cwd=cwd
+            ["bash", "-c", command], capture_output=True, text=True, cwd=Path.cwd()
         )
         result_str = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
         logger.info(result_str)
