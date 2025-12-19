@@ -1,4 +1,3 @@
-import inspect
 import logging
 from typing import Any, Callable, Coroutine
 
@@ -60,13 +59,9 @@ def to_json(
 async def execute_tool(
     tool_call: BetaToolUseBlock,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]],
-    ctx: Any = None,
 ) -> BetaToolResultBlockParam:
     """Execute a tool call and return the result in Anthropic's format."""
     tool = next(t for t in tools if t.__name__ == tool_call.name)
-    if "ctx" in inspect.signature(tool).parameters:
-        tool_call.input["ctx"] = ctx
-
     result = await tool(**tool_call.input)
 
     content = [BetaTextBlockParam(text=str(result), type="text")]

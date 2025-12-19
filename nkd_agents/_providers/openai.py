@@ -1,4 +1,3 @@
-import inspect
 import json
 import logging
 from typing import Any, Callable, Coroutine
@@ -66,14 +65,10 @@ def to_json(func: Callable[..., Coroutine[Any, Any, Any]]) -> FunctionToolParam:
 async def execute_tool(
     tool_call: ParsedResponseFunctionToolCall,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]],
-    ctx: Any = None,
 ) -> FunctionCallOutput:
     """Execute a tool call and return the result in OpenAI's format."""
     tool = next(t for t in tools if t.__name__ == tool_call.name)
     args = json.loads(tool_call.arguments)
-    if "ctx" in inspect.signature(tool).parameters:
-        args["ctx"] = ctx
-
     result = await tool(**args)
 
     return FunctionCallOutput(
