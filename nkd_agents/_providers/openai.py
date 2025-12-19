@@ -33,7 +33,7 @@ async def call(
     """Make the raw API call to OpenAI."""
     if client is None:
         client = AsyncOpenAI()
-    
+
     async with client:
         if text_format:
             return await client.responses.parse(
