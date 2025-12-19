@@ -38,11 +38,11 @@ jobs:
     
     - name: Run ruff linting
       run: |
-        ruff check nkd_agents/ tests/
+        ruff check nkd_agents/
     
     - name: Run ruff formatting check
       run: |
-        ruff format --check nkd_agents/ tests/
+        ruff format --check nkd_agents/
     
     # - name: Run pytest
     #   run: |
@@ -50,11 +50,11 @@ jobs:
     
     - name: Run pyright type checking
       run: |
-        pyright nkd_agents/
+        pyright nkd_agents/ examples/
     
     - name: Run xenon cyclomatic complexity analysis
       run: |
-        xenon --max-average A --max-modules A --max-absolute B nkd_agents/
+        xenon --max-average A --max-modules A --max-absolute B nkd_agents/ examples/
     
     - name: Generate complexity report
       run: |
