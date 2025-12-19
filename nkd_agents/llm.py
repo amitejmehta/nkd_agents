@@ -27,16 +27,6 @@ async def llm(
 ) -> str: ...
 
 
-async def _execute_tools(
-    coros: list[Coroutine[Any, Any, str]], tool_calls: list[Any]
-) -> list[str]:
-    """Execute tools, returning results or 'Interrupted' on cancellation."""
-    try:
-        return await asyncio.gather(*coros)
-    except asyncio.CancelledError:
-        return ["Interrupted"] * len(tool_calls)
-
-
 async def llm(
     msgs: Messages,
     *,
@@ -69,6 +59,11 @@ async def llm(
         if not tool_calls:
             return text_format.model_validate_json(text) if text_format else text
 
-        coros = [_llm.execute_tool(tc, tools) for tc in tool_calls]
-        results = await _execute_tools(coros, tool_calls)
+        try:
+            results = await asyncio.gather(
+                *[_llm.execute_tool(tc, tools) for tc in tool_calls]
+            )
+        except asyncio.CancelledError:
+            results = ["Interrupted"] * len(tool_calls)
+
         msgs.extend(_llm.format_tool_results_message(tool_calls, results))
