@@ -1,6 +1,6 @@
-import contextvars
 import logging
 import sys
+from contextvars import ContextVar
 
 IS_TTY = sys.stderr.isatty()
 GREEN = "\033[32m" if IS_TTY else ""
@@ -8,7 +8,7 @@ RED = "\033[31m" if IS_TTY else ""
 RESET = "\033[0m" if IS_TTY else ""
 DIM = "\033[38;5;242m" if IS_TTY else ""
 
-logging_context = contextvars.ContextVar("logging_context", default={})
+logging_context = ContextVar[dict[str, str]]("logging_context", default={})
 
 
 class ContextFilter(logging.Filter):

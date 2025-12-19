@@ -1,15 +1,20 @@
 import json
 import logging
+from collections.abc import Iterable
 from typing import Any, Callable, Coroutine
 
-from openai import AsyncOpenAI, omit
+from openai import AsyncOpenAI, Omit, omit
 from openai.types.responses.function_tool_param import FunctionToolParam
 from openai.types.responses.parsed_response import (
     ParsedResponse,
     ParsedResponseFunctionToolCall,
     ParsedResponseOutputItem,
 )
-from openai.types.responses.response_input_item_param import FunctionCallOutput
+from openai.types.responses.response_input_item_param import (
+    FunctionCallOutput,
+)
+from openai.types.responses.response_input_param import ResponseInputParam
+from openai.types.responses.tool_param import ToolParam
 
 from .._types import TModel
 from .._utils import extract_function_schema
@@ -18,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 async def call(
-    messages: list[dict[str, Any]],
+    messages: ResponseInputParam,
     model: str,
-    tools: list[Callable[..., Coroutine[Any, Any, Any]]],
+    tools: Iterable[ToolParam] | Omit,
     text_format: type[TModel] | None = None,
     **settings: Any,
 ) -> ParsedResponse:

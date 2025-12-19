@@ -20,10 +20,16 @@ The key: handle provider-specific formatting while maintaining consistent data f
 from . import anthropic, openai
 from typing import Any
 
+from anthropic.types.beta import BetaMessageParam
+from openai.types.responses.response_input_param import ResponseInputParam
+
 # Provider registry mapping prefixes to provider modules
 PROVIDERS: dict[str, Any] = {
     "anthropic": anthropic,
     "openai": openai,
 }
 
-__all__ = ["anthropic", "openai", "PROVIDERS"]
+# Union of all provider message types
+Messages = str | list[BetaMessageParam] | ResponseInputParam
+
+__all__ = ["anthropic", "openai", "PROVIDERS", "Messages"]

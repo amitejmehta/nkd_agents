@@ -1,6 +1,18 @@
 import inspect
+import os
 from pathlib import Path
 from typing import Any, Callable, Coroutine
+
+
+def load_env(path: str = ".env") -> None:
+    """Load environment variables from a file."""
+    if not Path(path).exists():
+        return
+    for line in Path(path).read_text().splitlines():
+        if not line or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ[k] = v
 
 
 def extract_function_schema(
