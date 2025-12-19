@@ -23,7 +23,7 @@ def _client(model: str) -> AsyncAnthropic | AsyncAnthropicVertex:
 
 
 async def call(
-    messages: list[BetaMessageParam] | list[dict[str, Any]],
+    messages: list[BetaMessageParam],
     model: str,
     tools: list[BetaToolParam] | Omit = omit,
     text_format: type[TModel] | None = None,
@@ -33,7 +33,7 @@ async def call(
     async with _client(model) as client:
         async with client.beta.messages.stream(
             model=model,
-            messages=messages,  # type: ignore[reportOptionalMemberAccess]
+            messages=messages,
             tools=tools if tools else omit,
             output_format=text_format if text_format else omit,
             betas=["structured-outputs-2025-11-13"] if text_format else omit,

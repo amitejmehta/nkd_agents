@@ -1,13 +1,13 @@
 import asyncio
 from typing import Any, Callable, Coroutine, overload
 
-from ._providers import PROVIDERS
+from ._providers import PROVIDERS, Messages
 from ._types import TModel
 
 
 @overload
 async def llm(
-    msgs: str | list[dict[str, Any]],
+    msgs: Messages,
     *,
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
@@ -16,7 +16,7 @@ async def llm(
 ) -> TModel: ...
 @overload
 async def llm(
-    msgs: str | list[dict[str, Any]],
+    msgs: Messages,
     *,
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
@@ -26,7 +26,7 @@ async def llm(
 
 
 async def llm(
-    msgs: str | list[dict[str, Any]],
+    msgs: Messages,
     *,
     model: str = "anthropic:claude-sonnet-4-5-20250929",
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = [],

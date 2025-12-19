@@ -8,6 +8,7 @@ from anthropic.types.beta import BetaMessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
+from nkd_agents._utils import load_env
 from nkd_agents.llm import llm
 from nkd_agents.logging import DIM, RED, RESET, configure_logging
 from nkd_agents.tools import edit_file, execute_bash, read_file, subtask
@@ -23,7 +24,7 @@ class ChatSession:
         if Path("CLAUDE.md").exists():
             self._system = Path("CLAUDE.md").read_text(encoding="utf-8")
 
-        self._q = asyncio.Queue()
+        self._q = asyncio.Queue[BetaMessageParam]()
         self._llm_task = None
         self._kb = self._create_key_bindings()
         style = styles.Style.from_dict({"": "ansibrightblack"})
@@ -89,9 +90,7 @@ class ChatSession:
 
 
 async def main_async() -> None:
-    if Path(".env").exists():
-        secrets = [x.split("=", 1) for x in Path(".env").read_text().splitlines() if x]
-        os.environ.update(secrets)
+    load_env()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     masked_key = f"...{api_key[-4:]}" if api_key else f"{RED}Not Set{DIM}"

@@ -24,6 +24,7 @@ document = ContextVar[Document | None]("document", default=None)
 async def edit_string(old_str: str, new_str: str) -> str:
     """Edit the string in the current document context."""
     doc = document.get()
+    assert doc is not None
 
     if old_str == new_str:
         return "Error: old_str and new_str must be different"
