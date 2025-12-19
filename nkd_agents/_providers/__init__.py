@@ -9,10 +9,10 @@
 Required functions:
 - `call()` - Make API call, return raw response
 - `to_json()` - Convert Python function → provider's tool schema
-- `execute_tool()` - Execute tool call, return formatted result
+- `execute_tool()` - Execute tool call, return raw string result
 - `extract_text_and_tools()` - Parse response → (text: str, tool_calls: list)
 - `format_assistant_message()` - Response → message(s) to append to conversation
-- `format_tool_result_messages()` - Tool results → message(s) to append to conversation
+- `format_tool_results_message()` - (tool_calls, results) → message(s) to append to conversation
 
 The key: handle provider-specific formatting while maintaining consistent data flow.
 """

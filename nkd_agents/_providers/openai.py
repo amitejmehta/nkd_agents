@@ -27,10 +27,14 @@ async def call(
     model: str,
     tools: Iterable[ToolParam] | Omit,
     text_format: type[TModel] | None = None,
+    client: AsyncOpenAI | None = None,
     **settings: Any,
 ) -> ParsedResponse:
     """Make the raw API call to OpenAI."""
-    async with AsyncOpenAI() as client:
+    if client is None:
+        client = AsyncOpenAI()
+    
+    async with client:
         if text_format:
             return await client.responses.parse(
                 model=model,
@@ -70,17 +74,12 @@ def to_json(func: Callable[..., Coroutine[Any, Any, Any]]) -> FunctionToolParam:
 async def execute_tool(
     tool_call: ParsedResponseFunctionToolCall,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]],
-) -> FunctionCallOutput:
-    """Execute a tool call and return the result in OpenAI's format."""
+) -> str:
+    """Execute a tool call and return the raw string result."""
     tool = next(t for t in tools if t.__name__ == tool_call.name)
     args = json.loads(tool_call.arguments)
     result = await tool(**args)
-
-    return FunctionCallOutput(
-        type="function_call_output",
-        call_id=tool_call.call_id,
-        output=str(result),
-    )
+    return str(result)
 
 
 def extract_text_and_tools(
@@ -112,8 +111,9 @@ def format_assistant_message(
     return response.output
 
 
-def format_tool_result_messages(
-    tool_results: list[FunctionCallOutput],
+def format_tool_results_message(
+    tool_calls: list[ParsedResponseFunctionToolCall],
+    results: list[str],
 ) -> list[FunctionCallOutput]:
     """Format tool results into message(s) to append to conversation.
 
@@ -121,4 +121,11 @@ def format_tool_result_messages(
     not wrapped in a message structure.
     Returns a list of items to extend onto the messages list.
     """
-    return tool_results
+    return [
+        FunctionCallOutput(
+            type="function_call_output",
+            call_id=tool_call.call_id,
+            output=result,
+        )
+        for tool_call, result in zip(tool_calls, results)
+    ]
