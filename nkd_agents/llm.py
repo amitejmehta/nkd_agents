@@ -12,6 +12,7 @@ async def llm(
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
     text_format: type[TModel],
+    client: Any = ...,
     **settings: Any,
 ) -> TModel: ...
 @overload
@@ -21,8 +22,19 @@ async def llm(
     model: str = ...,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = ...,
     text_format: type[TModel] | None = ...,
+    client: Any = ...,
     **settings: Any,
 ) -> str: ...
+
+
+async def _execute_tools(
+    coros: list[Coroutine[Any, Any, str]], tool_calls: list[Any]
+) -> list[str]:
+    """Execute tools, returning results or 'Interrupted' on cancellation."""
+    try:
+        return await asyncio.gather(*coros)
+    except asyncio.CancelledError:
+        return ["Interrupted"] * len(tool_calls)
 
 
 async def llm(
@@ -31,6 +43,7 @@ async def llm(
     model: str = "anthropic:claude-sonnet-4-5-20250929",
     tools: list[Callable[..., Coroutine[Any, Any, Any]]] = [],
     text_format: type[TModel] | None = None,
+    client: Any = None,
     **settings: Any,
 ) -> str | TModel:
     """Run LLM in agentic loop, executing tools until final response.
@@ -46,8 +59,10 @@ async def llm(
     tool_defs = [_llm.to_json(t) for t in tools]
 
     while True:
-        # Call llm with: messages, model, tools, text_format
-        content = await _llm.call(msgs, model_name, tool_defs, text_format, **settings)
+        # Call llm with: messages, model, tools, text_format, client
+        content = await _llm.call(
+            msgs, model_name, tool_defs, text_format, client=client, **settings
+        )
         msgs.extend(_llm.format_assistant_message(content))
         text, tool_calls = _llm.extract_text_and_tools(content)
 
@@ -55,5 +70,5 @@ async def llm(
             return text_format.model_validate_json(text) if text_format else text
 
         coros = [_llm.execute_tool(tc, tools) for tc in tool_calls]
-        tool_results = await asyncio.gather(*coros)
-        msgs.extend(_llm.format_tool_result_messages(tool_results))
+        results = await _execute_tools(coros, tool_calls)
+        msgs.extend(_llm.format_tool_results_message(tool_calls, results))

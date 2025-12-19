@@ -44,11 +44,8 @@ async def main():
     print(f"   Before: {doc.content}")
 
     with ctx(document, doc):
-        await llm(
-            f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'",
-            tools=[edit_string],
-            max_tokens=1000,
-        )
+        prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
+        await llm(prompt, tools=[edit_string], max_tokens=1000)
 
     print(f"   After:  {doc.content}")
 

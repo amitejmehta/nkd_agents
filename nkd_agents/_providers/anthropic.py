@@ -17,7 +17,7 @@ from .._utils import extract_function_schema
 logger = logging.getLogger(__name__)
 
 
-def _client(model: str) -> AsyncAnthropic | AsyncAnthropicVertex:
+def _default_client(model: str) -> AsyncAnthropic | AsyncAnthropicVertex:
     """Get the appropriate Anthropic client based on model string."""
     return AsyncAnthropicVertex() if "@" in model else AsyncAnthropic()
 
@@ -27,10 +27,14 @@ async def call(
     model: str,
     tools: list[BetaToolParam] | Omit = omit,
     text_format: type[TModel] | None = None,
+    client: AsyncAnthropic | AsyncAnthropicVertex | None = None,
     **settings: Any,
 ) -> ParsedBetaMessage[TModel]:
     """Make the raw API call to Anthropic."""
-    async with _client(model) as client:
+    if client is None:
+        client = _default_client(model)
+    
+    async with client:
         async with client.beta.messages.stream(
             model=model,
             messages=messages,
@@ -59,16 +63,11 @@ def to_json(
 async def execute_tool(
     tool_call: BetaToolUseBlock,
     tools: list[Callable[..., Coroutine[Any, Any, Any]]],
-) -> BetaToolResultBlockParam:
-    """Execute a tool call and return the result in Anthropic's format."""
+) -> str:
+    """Execute a tool call and return the raw string result."""
     tool = next(t for t in tools if t.__name__ == tool_call.name)
     result = await tool(**tool_call.input)
-
-    content = [BetaTextBlockParam(text=str(result), type="text")]
-
-    return BetaToolResultBlockParam(
-        type="tool_result", tool_use_id=tool_call.id, content=content
-    )
+    return str(result)
 
 
 def extract_text_and_tools(
@@ -100,12 +99,21 @@ def format_assistant_message(
     return [{"role": "assistant", "content": response.content}]
 
 
-def format_tool_result_messages(
-    tool_results: list[BetaToolResultBlockParam],
+def format_tool_results_message(
+    tool_calls: list[BetaToolUseBlock],
+    results: list[str],
 ) -> list[BetaMessageParam]:
     """Format tool results into message(s) to append to conversation.
 
     For Anthropic, tool results must be wrapped in a user message.
     Returns a list of message dicts to extend onto the messages list.
     """
-    return [{"role": "user", "content": tool_results}]
+    tool_result_blocks = [
+        BetaToolResultBlockParam(
+            type="tool_result",
+            tool_use_id=tool_call.id,
+            content=[BetaTextBlockParam(text=result, type="text")],
+        )
+        for tool_call, result in zip(tool_calls, results)
+    ]
+    return [{"role": "user", "content": tool_result_blocks}]
