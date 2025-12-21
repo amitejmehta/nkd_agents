@@ -43,7 +43,6 @@ class ChatSession:
             if self._llm_task and not self._llm_task.done():
                 self._llm_task.cancel()
                 logger.info(f"{RED}...Interrupted. What now?{RESET}")
-            event.app.exit()
 
         @kb.add("escape", "escape")
         def _(event: KeyPressEvent) -> None:
@@ -76,6 +75,8 @@ class ChatSession:
                 _ = await self._llm_task
             except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.error(f"{RED}Error: {e}{RESET}")
             finally:
                 self._llm_task = None
 
