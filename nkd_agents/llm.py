@@ -63,7 +63,8 @@ async def llm(
             results = await asyncio.gather(
                 *[_llm.execute_tool(tc, tools) for tc in tool_calls]
             )
+            msgs.extend(_llm.format_tool_results_message(tool_calls, results))
         except asyncio.CancelledError:
             results = ["Interrupted"] * len(tool_calls)
-
-        msgs.extend(_llm.format_tool_results_message(tool_calls, results))
+            msgs.extend(_llm.format_tool_results_message(tool_calls, results))
+            raise

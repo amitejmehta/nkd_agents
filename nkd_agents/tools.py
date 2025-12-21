@@ -1,6 +1,5 @@
 import difflib
 import logging
-import subprocess
 from pathlib import Path
 
 from .llm import llm
@@ -85,14 +84,28 @@ async def execute_bash(command: str) -> str:
     - "STDOUT:\n{stdout}\nSTDERR:\n{stderr}\nEXIT CODE: {returncode}"
     - "Error executing command: {str(e)}"
     """
+    import asyncio
+
     logger.info(f"Executing Bash: {GREEN}{command}{RESET}")
+    process = None
     try:
-        result = subprocess.run(
-            ["bash", "-c", command], capture_output=True, text=True, cwd=Path.cwd()
+        process = await asyncio.create_subprocess_exec(
+            "bash",
+            "-c",
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=Path.cwd(),
         )
-        result_str = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
+        stdout, stderr = await process.communicate()
+        result_str = f"STDOUT:\n{stdout.decode()}\nSTDERR:\n{stderr.decode()}\nEXIT CODE: {process.returncode}"
         logger.info(result_str)
         return result_str
+    except asyncio.CancelledError:
+        if process is not None and process.returncode is None:
+            process.kill()
+            await process.wait()
+        raise
     except Exception as e:
         return f"Error executing command: {str(e)}"
 
