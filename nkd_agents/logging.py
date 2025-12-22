@@ -21,7 +21,7 @@ class ContextFilter(logging.Filter):
 def configure_logging() -> None:
     if IS_TTY:
         # ANSI codes: \033[1m = bold, \033[2m = dim, \033[38;5;N = 256 color, \033[0m = reset
-        fmt = "\n\033[38;5;65m%(asctime)s\033[38;5;102m | %(levelname)s\033[0m\033[38;5;103m | %(name)s:%(funcName)s:%(lineno)s\033[38;5;255m - %(message)s\033[2m%(context)s\033[0m"
+        fmt = "\n\033[38;5;65m%(asctime)s\033[38;5;102m | %(levelname)s\033[0m\033[38;5;103m | %(name)s:%(funcName)s:%(lineno)s\033[38;5;255m - %(message)s\033[38;5;242m%(context)s\033[0m"
     else:
         fmt = "%(asctime)s | %(levelname)s | %(name)s:%(funcName)s:%(lineno)s - %(message)s%(context)s"
     handler = logging.StreamHandler(sys.stderr)
