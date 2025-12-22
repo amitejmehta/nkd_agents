@@ -6,11 +6,16 @@ The tool edits the string in place, and mutations are visible after llm() return
 """
 
 import asyncio
+import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+from nkd_agents._utils import load_env
 from nkd_agents.ctx import ctx
 from nkd_agents.llm import llm
+from nkd_agents.logging import configure_logging, logging_context
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=False)
@@ -36,27 +41,22 @@ async def edit_string(old_str: str, new_str: str) -> str:
 
 
 async def main():
-    print("\n" + "=" * 70)
-    print("Test: MUTATION - Tool mutates context object")
-    print("=" * 70 + "\n")
+    load_env()
+    configure_logging()
+    logging_context.set({"test": "tool_ctx_mutation"})
 
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
-    print(f"   Before: {doc.content}")
+    logger.info(f"Before: {doc.content}")
 
     with ctx(document, doc):
         prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
         await llm(prompt, tools=[edit_string], max_tokens=1000)
 
-    print(f"   After:  {doc.content}")
+    logger.info(f"After: {doc.content}")
 
-    # Assertion
     expected = "The quick brown cat jumps over the lazy dog"
     assert doc.content == expected
-    print("\n   ✓ Mutation persisted correctly!\n")
-
-    print("=" * 70)
-    print("✓ Test passed!")
-    print("=" * 70 + "\n")
+    logger.info("✓ Test passed!")
 
 
 if __name__ == "__main__":

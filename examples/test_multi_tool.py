@@ -1,0 +1,57 @@
+"""
+Test multi-tool orchestration: LLM chains multiple tools to complete a task.
+
+Key lesson: A travel assistant needs more than just flights OR hotels—it needs to
+coordinate both. Give the LLM multiple tools and it becomes an orchestrator,
+deciding which tools to use, in what order, and how to combine their results.
+
+The framework's agentic loop handles the complexity: tool A's output feeds into
+the decision to call tool B, then synthesize into a final answer.
+"""
+
+import asyncio
+import logging
+
+from nkd_agents import llm
+from nkd_agents._utils import load_env
+from nkd_agents.logging import configure_logging, logging_context
+
+logger = logging.getLogger(__name__)
+
+
+async def search_flights(origin: str, destination: str) -> str:
+    """Search for available flights between two cities."""
+    return f"Found 3 flights from {origin} to {destination}: $450, $520, $680"
+
+
+async def search_hotels(city: str, budget: str) -> str:
+    """Search for hotels in a city within a budget range."""
+    return f"Found 5 hotels in {city} ({budget} budget): Grand Plaza ($120/night), City Inn ($85/night), Budget Stay ($60/night)"
+
+
+async def calculate_total_cost(flight_price: int, hotel_price: int, nights: int) -> str:
+    """Calculate total trip cost given flight and hotel prices."""
+    total = flight_price + (hotel_price * nights)
+    return f"${total}"
+
+
+async def main():
+    load_env()
+    configure_logging()
+    logging_context.set({"test": "multi_tool"})
+
+    prompt = "I want to visit Tokyo from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
+    response = await llm(
+        prompt,
+        tools=[search_flights, search_hotels, calculate_total_cost],
+        max_tokens=1000,
+    )
+
+    assert "450" in response or "$450" in response
+    assert "60" in response or "$60" in response
+    assert "690" in response or "$690" in response
+    logger.info("✓ Test passed!")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
