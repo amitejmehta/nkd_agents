@@ -10,10 +10,15 @@ With this: interruption becomes transparent, conversation flows naturally.
 """
 
 import asyncio
+import logging
 
 from anthropic.types.beta import BetaMessageParam
 
+from nkd_agents._utils import load_env
 from nkd_agents.llm import llm
+from nkd_agents.logging import configure_logging, logging_context
+
+logger = logging.getLogger(__name__)
 
 tool_running = asyncio.Event()
 
@@ -31,15 +36,14 @@ async def add(a: int, b: int) -> str:
 
 
 async def main():
-    print("\n" + "=" * 70)
-    print("Test: GRACEFUL INTERRUPTION - Conversation continues naturally")
-    print("=" * 70 + "\n")
+    load_env()
+    configure_logging()
+    logging_context.set({"test": "cancellation"})
 
     messages: list[BetaMessageParam] = [
         {"role": "user", "content": "Analyze the sales_data dataset"}
     ]
 
-    # Start task, then interrupt mid-execution
     task = asyncio.create_task(
         llm(messages, tools=[analyze_dataset, add], max_tokens=2000)
     )
@@ -49,24 +53,19 @@ async def main():
     try:
         await task
     except asyncio.CancelledError:
-        print("   [Interrupted]\n")
+        logger.info("Interrupted")
 
-    # Change your mind—ask something completely different
     messages.append({"role": "user", "content": "Never mind. What's 5 + 3?"})
     response = await llm(messages, tools=[analyze_dataset, add], max_tokens=2000)
-    print(f"   Q: What's 5 + 3?\n   A: {response}\n")
+    logger.info(f"Changed mind: {response}")
     assert "8" in response
 
-    # Reference the past—LLM should remember the interruption
     messages.append({"role": "user", "content": "What happened to that analysis?"})
     response = await llm(messages, tools=[analyze_dataset, add], max_tokens=2000)
-    print(f"   Q: What happened to that analysis?\n   A: {response}\n")
+    logger.info(f"Asked about interruption: {response}")
     assert "interrupt" in response.lower()
 
-    print("   ✓ Conversation stayed coherent across interruption\n")
-    print("=" * 70)
-    print("✓ Test passed!")
-    print("=" * 70 + "\n")
+    logger.info("✓ Test passed!")
 
 
 if __name__ == "__main__":
