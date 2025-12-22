@@ -31,10 +31,11 @@ async def call(
     **settings: Any,
 ) -> ParsedResponse:
     """Make the raw API call to OpenAI."""
+    should_close = client is None
     if client is None:
         client = AsyncOpenAI()
 
-    async with client:
+    try:
         if text_format:
             return await client.responses.parse(
                 model=model,
@@ -50,6 +51,9 @@ async def call(
                 tools=tools if tools else omit,
                 **settings,
             )
+    finally:
+        if should_close:
+            await client.close()
 
 
 def to_json(func: Callable[..., Coroutine[Any, Any, Any]]) -> FunctionToolParam:

@@ -31,10 +31,11 @@ async def call(
     **settings: Any,
 ) -> ParsedBetaMessage[TModel]:
     """Make the raw API call to Anthropic."""
+    should_close = client is None
     if client is None:
         client = _default_client(model)
 
-    async with client:
+    try:
         async with client.beta.messages.stream(
             model=model,
             messages=messages,
@@ -45,6 +46,9 @@ async def call(
         ) as stream:
             message = await stream.get_final_message()
             return message
+    finally:
+        if should_close:
+            await client.close()
 
 
 def to_json(
