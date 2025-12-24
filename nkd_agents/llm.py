@@ -2,6 +2,9 @@ import asyncio
 import logging
 from typing import Any, Callable, Coroutine, overload
 
+from anthropic import APIStatusError as AnthropicAPIStatusError
+from openai import APIStatusError as OpenAIAPIStatusError
+
 from ._providers import PROVIDERS, Messages
 from ._types import TModel
 
@@ -10,15 +13,11 @@ logger = logging.getLogger(__name__)
 
 def _parse_models(models: list[str]) -> tuple[Any, list[str]]:
     """Parse model strings and return (provider, model_names)."""
+    assert len(set[str](models)) == len(models), "All models must be unique"
     providers = [m.split(":", 1)[0] for m in models]
 
-    if len(set(providers)) > 1:
-        raise ValueError("All fallback models must use same provider")
-
-    provider_name = providers[0]
-    model_names = [m.split(":", 1)[1] for m in models]
-
-    return PROVIDERS[provider_name], model_names
+    assert len(set[str](providers)) == 1, "All models must use same provider"
+    return PROVIDERS[providers[0]], [m.split(":", 1)[1] for m in models]
 
 
 async def _call_with_fallback(
@@ -36,9 +35,11 @@ async def _call_with_fallback(
             return await provider.call(
                 msgs, m, tool_defs, text_format, client=client, **settings
             )
-        except Exception as e:
-            logger.warning(f"Model {m} failed: {e}, trying fallback...")
-    raise Exception(f"All models failed: {models}")
+        except (AnthropicAPIStatusError, OpenAIAPIStatusError) as e:
+            if e.status_code == 500 and m != models[-1]:
+                logger.warning(f"Model {m} failed, trying fallback {e}")
+                continue
+            raise
 
 
 @overload
