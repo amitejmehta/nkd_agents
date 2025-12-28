@@ -6,12 +6,11 @@ Demonstrates:
 2. Basic tool call
 """
 
-import asyncio
 import logging
 
+from _utils import test_runner
+
 from nkd_agents import llm
-from nkd_agents._utils import load_env
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +30,8 @@ async def get_weather(city: str) -> str:
     return weather_db.get(city, f"Weather data not available for {city}")
 
 
+@test_runner("basic")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "basic"})
     prompt = "What's the weather in Paris?"
 
     # 1. Most basic usage: just pass a string prompt (anthropic is the default model and requires max_tokens)
@@ -46,8 +43,6 @@ async def main():
     response = await llm(prompt, tools=[get_weather], max_tokens=200)
     assert "sunny" in response.lower() and "72" in response.lower()
 
-    logger.info("\n✓ Test passed!")
-
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

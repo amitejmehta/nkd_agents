@@ -6,14 +6,12 @@ Demonstrates:
 2. Tool call with structured output
 """
 
-import asyncio
 import logging
 
 import pydantic
+from _utils import test_runner
 
 from nkd_agents import llm
-from nkd_agents._utils import load_env
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +37,8 @@ class Weather(pydantic.BaseModel):
     weather: str
 
 
+@test_runner("structured_output")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "structured_output"})
     prompt = "What's the weather in Paris?"
 
     # 1. Structured output: Just set "text_format" to your Pydantic model
@@ -61,8 +57,6 @@ async def main():
     assert response2.weather is not None
     assert "sunny" in response2.weather.lower() and "72" in response2.weather.lower()
 
-    logger.info("\n✓ Test passed!")
-
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -9,12 +9,11 @@ The framework's agentic loop handles the complexity: tool A's output feeds into
 the decision to call tool B, then synthesize into a final answer.
 """
 
-import asyncio
 import logging
 
+from _utils import test_runner
+
 from nkd_agents import llm
-from nkd_agents._utils import load_env
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +34,8 @@ async def calculate_total_cost(flight_price: int, hotel_price: int, nights: int)
     return f"${total}"
 
 
+@test_runner("multi_tool")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "multi_tool"})
-
     prompt = "I want to visit Tokyo from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     response = await llm(
         prompt,
@@ -50,8 +46,7 @@ async def main():
     assert "450" in response or "$450" in response
     assert "60" in response or "$60" in response
     assert "690" in response or "$690" in response
-    logger.info("✓ Test passed!")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

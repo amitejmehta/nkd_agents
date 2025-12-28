@@ -5,14 +5,12 @@ Demonstrates:
 1. Conversation history with message list persisted across calls
 """
 
-import asyncio
 import logging
 
+from _utils import test_runner
 from anthropic.types.beta import BetaMessageParam
 
 from nkd_agents import llm
-from nkd_agents._utils import load_env
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +30,8 @@ async def get_weather(city: str) -> str:
     return weather_db.get(city, f"Weather data not available for {city}")
 
 
+@test_runner("conversation_history")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "conversation_history"})
-
     # 1. Conversation history: just pass and reuse the same message list
     logger.info("1. Conversation history")
     msgs: list[BetaMessageParam] = [{"role": "user", "content": "I live in Paris"}]
@@ -46,8 +41,6 @@ async def main():
     response = await llm(msgs, tools=[get_weather], max_tokens=200)
     assert "sunny" in response.lower() and "72" in response.lower()
 
-    logger.info("\n✓ Test passed!")
-
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
