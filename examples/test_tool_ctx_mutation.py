@@ -5,15 +5,14 @@ Key lesson: Tools can mutate mutable context objects (dataclass with frozen=Fals
 The tool edits the string in place, and mutations are visible after llm() returns.
 """
 
-import asyncio
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from nkd_agents._utils import load_env
+from _utils import test_runner
+
 from nkd_agents.ctx import ctx
 from nkd_agents.llm import llm
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +39,8 @@ async def edit_string(old_str: str, new_str: str) -> str:
     return f"Success: Replaced '{old_str}' with '{new_str}'"
 
 
+@test_runner("tool_ctx_mutation")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "tool_ctx_mutation"})
-
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
@@ -56,8 +52,7 @@ async def main():
 
     expected = "The quick brown cat jumps over the lazy dog"
     assert doc.content == expected
-    logger.info("✓ Test passed!")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

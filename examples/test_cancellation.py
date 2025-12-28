@@ -12,11 +12,10 @@ With this: interruption becomes transparent, conversation flows naturally.
 import asyncio
 import logging
 
+from _utils import test_runner
 from anthropic.types.beta import BetaMessageParam
 
-from nkd_agents._utils import load_env
 from nkd_agents.llm import llm
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +34,8 @@ async def add(a: int, b: int) -> str:
     return str(a + b)
 
 
+@test_runner("cancellation")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "cancellation"})
-
     messages: list[BetaMessageParam] = [
         {"role": "user", "content": "Analyze the sales_data dataset"}
     ]
@@ -65,8 +61,6 @@ async def main():
     logger.info(f"Asked about interruption: {response}")
     assert "interrupt" in response.lower()
 
-    logger.info("✓ Test passed!")
-
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

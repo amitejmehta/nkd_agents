@@ -5,14 +5,13 @@ Key lesson: Context variables provide isolated state per execution context.
 Tools automatically see the correct context without explicit parameter passing.
 """
 
-import asyncio
 import logging
 from contextvars import ContextVar
 
-from nkd_agents._utils import load_env
+from _utils import test_runner
+
 from nkd_agents.ctx import ctx
 from nkd_agents.llm import llm
-from nkd_agents.logging import configure_logging, logging_context
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +29,8 @@ async def greet(name: str) -> str:
     return greetings.get(lang, f"Hi, {name}!")
 
 
+@test_runner("tool_ctx")
 async def main():
-    load_env()
-    configure_logging()
-    logging_context.set({"test": "tool_ctx"})
-
     with ctx(current_language, "english"):
         response_en = await llm("Greet Alice", tools=[greet], max_tokens=1000)
     assert "Hello" in response_en or "hello" in response_en.lower()
@@ -43,8 +39,6 @@ async def main():
         response_es = await llm("Greet Alice", tools=[greet], max_tokens=1000)
     assert "Hola" in response_es or "hola" in response_es.lower()
 
-    logger.info("✓ Test passed!")
-
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
