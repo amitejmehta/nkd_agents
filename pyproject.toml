@@ -13,13 +13,15 @@ requires-python = ">=3.12, <3.13"
 dependencies = [
     "anthropic>=0.74.0,<=1.0.0",
     "openai>=2.11.0,<=3.0.0",
-    "prompt-toolkit>=3.0.52",
 ]
 
 [project.scripts]
 nkd_agents = "nkd_agents.cli:main"
 
 [project.optional-dependencies]
+cli = [
+    "prompt-toolkit>=3.0.52,<4.0.0",
+]
 dev = [
     "freezegun==1.5.1",
     "pyright==1.1.403",
@@ -73,7 +75,7 @@ exclude = [
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.8
+# Assume Python 3.12
 target-version = "py38"
 
 [tool.ruff.lint]
@@ -111,3 +113,8 @@ line-ending = "auto"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
+[tool.pyright]
+typeCheckingMode = "standard"
+include = ["nkd_agents", "examples"]
+exclude = ["**/__pycache__"]
+pythonVersion = "3.12"
