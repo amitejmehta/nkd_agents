@@ -44,9 +44,9 @@ jobs:
       run: |
         ruff format --check nkd_agents/
     
-    # - name: Run pytest
-    #   run: |
-    #     pytest tests/ -v --cov=nkd_agents --cov-report=term-missing
+    - name: Run pytest
+      run: |
+        pytest tests/ -v --cov=nkd_agents --cov-report=term-missing
     
     - name: Run pyright type checking
       run: |
