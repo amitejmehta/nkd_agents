@@ -90,7 +90,7 @@ async def llm(
 
     kwargs["model"] = kwargs.get("model", "claude-sonnet-4-5-20250929")
 
-    while True:
+    while True:  # anthropic requires streaming for very long outputs
         async with client.beta.messages.stream(
             messages=input, tools=tool_schemas, **kwargs
         ) as s:
