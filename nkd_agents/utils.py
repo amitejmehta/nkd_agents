@@ -53,16 +53,16 @@ def extract_function_params(
             - params_dict: Maps parameter names to their type definitions
             - required_list: List of required parameter names (no defaults)
     """
-    params, req = {}, []
+    params, required_params = {}, []
 
     for param in inspect.signature(func).parameters.values():
         param_sig = f"{func.__name__}.{param.name}: {param.annotation}"
         params[param.name] = process_param_annotation(param.annotation, param_sig)
 
         if param.default is inspect._empty:
-            req.append(param.name)
+            required_params.append(param.name)
 
-    return params, req
+    return params, required_params
 
 
 def display_diff(old: str, new: str, path: str) -> None:
