@@ -1,16 +1,12 @@
-"""
-Test conversation history.
-
-Demonstrates:
-1. Conversation history with message list persisted across calls
-"""
-
 import logging
 
-from _utils import test_runner
+from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaMessageParam
 
-from nkd_agents import llm
+from nkd_agents.anthropic import llm
+
+from ..utils import test
+from .model_settings import KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +26,21 @@ async def get_weather(city: str) -> str:
     return weather_db.get(city, f"Weather data not available for {city}")
 
 
-@test_runner("conversation_history")
+@test("conversation_history")
 async def main():
-    # 1. Conversation history: just pass and reuse the same message list
+    """Test conversation history.
+
+    Demonstrates:
+    1. Conversation history with message list persisted across calls
+    """
     logger.info("1. Conversation history")
     msgs: list[BetaMessageParam] = [{"role": "user", "content": "I live in Paris"}]
-    _ = await llm(msgs, max_tokens=200)
+    async with AsyncAnthropic() as client:
+        _ = await llm(msgs, client, **KWARGS)
 
-    msgs.append({"role": "user", "content": "What's the weather?"})
-    response = await llm(msgs, tools=[get_weather], max_tokens=200)
-    assert "sunny" in response.lower() and "72" in response.lower()
+        msgs.append({"role": "user", "content": "What's the weather?"})
+        response = await llm(msgs, client, tools=[get_weather], **KWARGS)
+        assert "sunny" in response.lower() and "72" in response.lower()
 
 
 if __name__ == "__main__":
