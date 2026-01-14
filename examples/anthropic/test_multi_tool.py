@@ -1,19 +1,11 @@
-"""
-Test multi-tool orchestration: LLM chains multiple tools to complete a task.
-
-Key lesson: A travel assistant needs more than just flights OR hotels—it needs to
-coordinate both. Give the LLM multiple tools and it becomes an orchestrator,
-deciding which tools to use, in what order, and how to combine their results.
-
-The framework's agentic loop handles the complexity: tool A's output feeds into
-the decision to call tool B, then synthesize into a final answer.
-"""
-
 import logging
 
-from _utils import test_runner
+from anthropic import AsyncAnthropic
 
-from nkd_agents import llm
+from nkd_agents.anthropic import llm
+
+from ..utils import test
+from .model_settings import KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +26,22 @@ async def calculate_total_cost(flight_price: int, hotel_price: int, nights: int)
     return f"${total}"
 
 
-@test_runner("multi_tool")
+@test("multi_tool")
 async def main():
+    """
+    Test multi-tool orchestration: LLM chains multiple tools to complete a task.
+
+    Key lesson: A travel assistant needs more than just flights OR hotels—it needs to
+    coordinate both. Give the LLM multiple tools and it becomes an orchestrator,
+    deciding which tools to use, in what order, and how to combine their results.
+
+    The framework's agentic loop handles the complexity: tool A's output feeds into
+    the decision to call tool B, then synthesize into a final answer.
+    """
     prompt = "I want to visit Tokyo from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
-    response = await llm(
-        prompt,
-        tools=[search_flights, search_hotels, calculate_total_cost],
-        max_tokens=1000,
-    )
+    tools = [search_flights, search_hotels, calculate_total_cost]
+    async with AsyncAnthropic() as client:
+        response = await llm(prompt, client, tools=tools, **KWARGS)
 
     assert "450" in response or "$450" in response
     assert "60" in response or "$60" in response
