@@ -18,9 +18,9 @@ RUN addgroup -g 1000 agent && \
 COPY pyproject.toml /tmp/
 COPY nkd_agents/ /tmp/nkd_agents/
 
-# Install the package using uv
+# Install the package using uv with CLI dependencies
 WORKDIR /tmp
-RUN uv pip install --system -e .
+RUN uv pip install --system -e ".[cli]"
 
 # Create workspace directory and switch to non-root user
 RUN mkdir -p /workspace && chown agent:agent /workspace
