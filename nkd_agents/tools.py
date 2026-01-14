@@ -1,29 +1,57 @@
-import difflib
+import asyncio
+import base64
 import logging
+from contextvars import ContextVar
 from pathlib import Path
+from typing import Literal
 
-from .llm import llm
-from .logging import GREEN, RED, RESET, logging_context
+from anthropic import AsyncAnthropic
+from anthropic.types.beta import BetaImageBlockParam
+from anthropic.types.beta.beta_base64_image_source_param import (
+    BetaBase64ImageSourceParam,
+)
+
+from .anthropic import llm
+from .logging import GREEN, RESET, logging_ctx
+from .utils import display_diff
 
 logger = logging.getLogger(__name__)
 
+# Context variable for sandbox directory - when set, all file operations (read_file,
+# edit_file, execute_bash) are restricted to this directory. Only relative paths are
+# allowed when sandbox is active (absolute paths will error). This prevents escaping the sandbox.
+sandbox_ctx = ContextVar[str | None]("sandbox_ctx", default=None)
 
-def _display_diff(old: str, new: str, path: str) -> None:
-    """Display a colorized unified diff in the console."""
-    diff = difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="")
 
-    lines = [f"\nUpdate: {path}"]
-    for line in diff:
-        color = GREEN if line[0] == "+" else RED if line[0] == "-" else ""
-        lines.append(f"{color}{line}{RESET}")
+def resolve_path(path: str) -> Path | str:
+    """Resolve a path respecting sandbox_ctx if set.
 
-    logger.info("\n".join(lines))
+    Returns:
+        Path object if path is valid and allowed
+        Error string if path violates sandbox rules
+    """
+    # When sandbox is set, only allow relative paths inside sandbox
+    sandbox_dir = sandbox_ctx.get()
+    if sandbox_dir:
+        if Path(path).is_absolute():
+            return f"Error: Absolute paths not allowed when sandbox is set. Use relative path: {path}"
+        sandbox_path = Path(sandbox_dir).resolve()
+        resolved_path = (sandbox_path / path).resolve()
+        # Prevent escaping sandbox with ../
+        if not str(resolved_path).startswith(str(sandbox_path)):
+            return f"Error: Path escapes sandbox: {path}"
+        return resolved_path
+    else:
+        return Path(path).resolve()
 
 
 async def read_file(path: str) -> str:
     """Read and return the contents of a file at the given path. Only works with files, not directories."""
     try:
-        resolved_path = Path(path).resolve()
+        resolved_path = resolve_path(path)
+        if isinstance(resolved_path, str):  # Error message
+            return resolved_path
+
         content = resolved_path.read_text(encoding="utf-8")
         logger.info(f"\nRead: {GREEN}{resolved_path}{RESET}\n")
         return content
@@ -56,7 +84,9 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         return "Error: old_str and new_str must be different"
 
     try:
-        resolved_path = Path(path).resolve()
+        resolved_path = resolve_path(path)
+        if isinstance(resolved_path, str):  # Error message
+            return resolved_path
 
         if resolved_path.exists():
             content = resolved_path.read_text(encoding="utf-8")
@@ -68,7 +98,7 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
                 return f"Error: File '{path}' not found"
             content, edited_content = "", new_str
 
-        _display_diff(content, edited_content, str(resolved_path))
+        display_diff(content, edited_content, str(resolved_path))
         resolved_path.parent.mkdir(parents=True, exist_ok=True)
         resolved_path.write_text(edited_content, encoding="utf-8")
         return f"Success: Updated {resolved_path}"
@@ -84,20 +114,20 @@ async def execute_bash(command: str) -> str:
     - "STDOUT:\n{stdout}\nSTDERR:\n{stderr}\nEXIT CODE: {returncode}"
     - "Error executing command: {str(e)}"
     """
-    import asyncio
-
     logger.info(f"Executing Bash: {GREEN}{command}{RESET}")
     process = None
     try:
+        sandbox_dir = sandbox_ctx.get()
         process = await asyncio.create_subprocess_exec(
             "bash",
             "-c",
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=Path.cwd(),
+            cwd=Path(sandbox_dir) if sandbox_dir else Path.cwd(),
         )
         stdout, stderr = await process.communicate()
+
         result_str = f"STDOUT:\n{stdout.decode()}\nSTDERR:\n{stderr.decode()}\nEXIT CODE: {process.returncode}"
         logger.info(result_str)
         return result_str
@@ -127,15 +157,31 @@ async def subtask(prompt: str, task_label: str) -> str:
     Returns:
         Response from the sub-agent
     """
-    logging_context.set({"subtask": task_label})
+    logging_ctx.set({"subtask": task_label})
 
     try:
         tools = [read_file, edit_file, execute_bash]
-        thinking = {"type": "enabled", "budget_tokens": 2048}
-        response = await llm(prompt, tools=tools, thinking=thinking, max_tokens=20000)
+        async with AsyncAnthropic() as client:
+            response = await llm(prompt, client, tools=tools, max_tokens=20000)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
 
     except Exception as e:
-        logger.exception(f"\n✗ subtask '{task_label}' failed: {str(e)}\n", exc_info=e)
+        logger.info(f"\n✗ subtask '{task_label}' failed: {str(e)}\n")
         return f"subtask '{task_label}' failed: {str(e)}"
+
+
+async def load_image(
+    path: str, media_type: Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+) -> list[BetaImageBlockParam] | str:
+    """Load an image from a given path. Supports jpg, jpeg, png, gif, and webp."""
+    try:
+        with open(path, "rb") as image_file:
+            image_data = image_file.read()
+        data = base64.standard_b64encode(image_data).decode("utf-8")
+        source = BetaBase64ImageSourceParam(
+            type="base64", media_type=media_type, data=data
+        )
+        return [{"type": "image", "source": source}]
+    except Exception as e:
+        return f"Error loading image '{path}': {str(e)}"

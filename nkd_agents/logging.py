@@ -8,12 +8,12 @@ RED = "\033[31m" if IS_TTY else ""
 RESET = "\033[0m" if IS_TTY else ""
 DIM = "\033[38;5;242m" if IS_TTY else ""
 
-logging_context = ContextVar[dict[str, str]]("logging_context", default={})
+logging_ctx = ContextVar[dict[str, str]]("logging_ctx", default={})
 
 
 class ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        ctx = logging_context.get()
+        ctx = logging_ctx.get()
         record.context = f" | {ctx}" if ctx else ""
         return True
 
