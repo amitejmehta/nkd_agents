@@ -21,6 +21,27 @@ def load_env(path: str = ".env") -> None:
         os.environ[k] = v
 
 
+def process_param_annotation(annotation: Any, param_sig: str) -> dict[str, Any]:
+    """Process a parameter annotation and return its schema."""
+    type_map = {str: "string", int: "integer", float: "number", bool: "boolean"}
+
+    if get_origin(annotation) is Literal:
+        literal_values = list(get_args(annotation))
+        if not literal_values:
+            raise ValueError(f"Empty Literal in {param_sig}")
+        first_type = type(literal_values[0])
+        if first_type not in type_map:
+            raise ValueError(f"Unsupported Literal type: {param_sig}")
+        if not all(type(v) == first_type for v in literal_values):
+            raise ValueError(f"Literal cannot have mixed types: {param_sig}")
+
+        return {"type": type_map[first_type], "enum": literal_values}
+    elif annotation is not inspect._empty and annotation not in type_map:
+        raise ValueError(f"Unsupported type: {param_sig}")
+    else:
+        return {"type": type_map.get(annotation, "string")}
+
+
 def extract_function_params(
     func: Callable[..., Awaitable[Any]],
 ) -> tuple[dict[str, str], list[str]]:
@@ -32,29 +53,11 @@ def extract_function_params(
             - params_dict: Maps parameter names to their type definitions
             - required_list: List of required parameter names (no defaults)
     """
-    type_map = {str: "string", int: "integer", float: "number", bool: "boolean"}
-
     params, req = {}, []
+
     for param in inspect.signature(func).parameters.values():
-        annotation = param.annotation
-        param_sig = f"{func.__name__}.{param.name}: {annotation}"
-
-        if get_origin(annotation) is Literal:
-            literal_values = list(get_args(annotation))
-            if not literal_values:
-                raise ValueError(f"Empty Literal in {param_sig}")
-
-            first_type = type(literal_values[0])
-            if first_type not in type_map:
-                raise ValueError(f"Unsupported Literal type: {param_sig}")
-            if not all(type(v) == first_type for v in literal_values):
-                raise ValueError(f"Literal cannot have mixed types: {param_sig}")
-
-            params[param.name] = {"type": type_map[first_type], "enum": literal_values}
-        elif annotation is not inspect._empty and annotation not in type_map:
-            raise ValueError(f"Unsupported type: {param_sig}")
-        else:
-            params[param.name] = {"type": type_map.get(annotation, "string")}
+        param_sig = f"{func.__name__}.{param.name}: {param.annotation}"
+        params[param.name] = process_param_annotation(param.annotation, param_sig)
 
         if param.default is inspect._empty:
             req.append(param.name)
