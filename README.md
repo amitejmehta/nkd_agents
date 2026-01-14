@@ -1,13 +1,28 @@
 # nkd_agents
 
-A minimalist Python framework for building AI agents using only the essential components: an `llm` API call in a loop with tools.
+A no-BS framework for AI agents. Import the `llm()` function from any provider and call it. That's it.
 
-**For detailed library documentation, examples, and usage patterns, see [`CLAUDE.md`](CLAUDE.md)**
+```python
+# Direct provider import (full control, provider-specific features)
+from nkd_agents.anthropic import llm_loop as llm
+response = await llm("What's 2+2?")
+
+# Or use convenience wrapper (auto-routing, unified API, auto-validation)
+from nkd_agents import llm
+response = await llm("What's 2+2?", model="claude-sonnet-4-5")
+```
+
+**For detailed documentation, see [`CLAUDE.md`](CLAUDE.md)**
 
 ## Installation
 
 ```bash
 uv pip install -U nkd_agents
+```
+
+For CLI support (interactive chat), install with the `cli` extra:
+```bash
+uv pip install -U nkd_agents[cli]
 ```
 
 ## Chat
@@ -39,7 +54,7 @@ docker run -it -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY -v $(pwd):/workspace nkd_
 ```bash
 git clone https://github.com/amitejmehta/nkd_agents.git
 cd nkd_agents
-uv pip install -e '.[dev]'
+uv pip install -e '.[dev,cli]'
 git checkout -b feat/your-feature
 # make changes
 pytest
