@@ -4,42 +4,57 @@ import os
 import traceback
 from pathlib import Path
 
-from anthropic import NOT_GIVEN, AsyncAnthropic, omit
+from anthropic import AsyncAnthropic, omit
 from anthropic.types.beta import BetaMessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
-from .anthropic import llm
+from .anthropic import client, llm, model_ctx, user
 from .logging import DIM, RED, RESET, configure_logging
-from .tools import edit_file, execute_bash, load_image, read_file, subtask
+from .system_prompt import SYSTEM_PROMPT
+from .tools import edit_file, execute_bash, load_image, read_file, subtask, switch_model
 from .utils import load_env
+
+configure_logging()
+load_env()
 
 logger = logging.getLogger(__name__)
 
-# state
+# Global settings for easy mutation by tools
+settings = {"max_tokens": 20000, "thinking": omit}
+
+client.set(AsyncAnthropic())
+model_ctx.set("claude-haiku-4-5")
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
 
+if Path("CLAUDE.md").exists():
+    claude_context = Path("CLAUDE.md").read_text(encoding="utf-8")
+    msgs.append(user(claude_context))
 
-async def llm_loop(client: AsyncAnthropic) -> None:
-    """For each msg in queue, configure then run the agentic loop.
+
+async def llm_loop() -> None:
+    """For each msg in queue, run the agentic loop.
     Runs forever due to nature of queue; supports cancellation of runs"""
     global llm_task
-
-    system = None
-    if Path("CLAUDE.md").exists():
-        system = Path("CLAUDE.md").read_text(encoding="utf-8")
 
     while True:
         msgs.append(await q.get())  # q.get hangs until msg added to queue
 
-        settings = {"max_tokens": 20000, "thinking": omit}
         if os.getenv("ANTHROPIC_THINKING_BUDGET") == "true":
             settings["thinking"] = {"type": "enabled", "budget_tokens": 2048}
 
-        tools = [read_file, edit_file, execute_bash, subtask, load_image]
-        coro = llm(msgs, client, system=system or NOT_GIVEN, tools=tools, **settings)
+        tools = [
+            read_file,
+            edit_file,
+            execute_bash,
+            subtask,
+            load_image,
+            switch_model,
+        ]
+
+        coro = llm(msgs, tools=tools, system=SYSTEM_PROMPT, **settings)
         llm_task = asyncio.create_task(coro)
 
         try:
@@ -63,6 +78,7 @@ async def user_input() -> None:
 
     @kb.add("escape")
     def interrupt(event: KeyPressEvent) -> None:
+        event.app.exit()
         if llm_task and not llm_task.done():
             llm_task.cancel()
 
@@ -82,14 +98,11 @@ async def user_input() -> None:
     while True:
         text: str = await session.prompt_async("> ")
         if text and text.strip():
-            await q.put({"role": "user", "content": text.strip()})
+            await q.put(user(text.strip()))
 
 
 async def main_async() -> None:
     """Launch user input and LLM loops in parallel."""
-    load_env()
-
-    configure_logging()
     logger.info(
         f"\n{DIM}nkd_agents"
         "'tab':     thinking\n"
@@ -101,7 +114,7 @@ async def main_async() -> None:
     )
 
     try:
-        _ = asyncio.create_task(llm_loop(AsyncAnthropic()))
+        _ = asyncio.create_task(llm_loop())
         await user_input()
 
     except (KeyboardInterrupt, EOFError):
