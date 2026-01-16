@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from contextvars import ContextVar
 from typing import Any, Awaitable, Callable
 
 from openai import AsyncOpenAI, omit
@@ -12,9 +13,12 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput
 
+from .ctx import get
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
+client = ContextVar[AsyncOpenAI]("client")
+model_ctx = ContextVar[str]("model_ctx", default="gpt-5.2")
 
 
 def tool_schema(func: Callable[..., Awaitable[Any]]) -> FunctionToolParam:
@@ -68,8 +72,7 @@ def format_tool_results(
 
 async def llm(
     input: list[ResponseInputItemParam] | str,
-    client: AsyncOpenAI,
-    tools: list[Callable[..., Awaitable[Any]]] = [],
+    tools: list[Callable[..., Awaitable[Any]]],
     **kwargs: Any,
 ) -> str:
     """Run GPT models in agentic loop (run until no tool calls, then return text).
@@ -82,9 +85,11 @@ async def llm(
     if isinstance(input, str):
         input = [{"role": "user", "content": input}]
 
-    kwargs["model"] = kwargs.get("model", "gpt-5.2")
+    kwargs["model"] = kwargs.get("model", model_ctx.get())
     while True:
-        resp = await client.responses.parse(input=input, tools=tool_schemas, **kwargs)
+        resp = await get(client).responses.parse(
+            input=input, tools=tool_schemas, **kwargs
+        )
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this

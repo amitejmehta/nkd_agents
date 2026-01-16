@@ -1,10 +1,12 @@
 import asyncio
 import logging
+from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Iterable
 
-from anthropic import AsyncAnthropic, AsyncAnthropicVertex, omit
+from anthropic import AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types.beta import (
     BetaMessageParam,
+    BetaTextBlockParam,
     BetaToolParam,
     BetaToolResultBlockParam,
     BetaToolUseBlock,
@@ -13,9 +15,12 @@ from anthropic.types.beta.beta_tool_result_block_param import Content
 from anthropic.types.beta.parsed_beta_message import ParsedBetaMessage
 from pydantic import BaseModel
 
+from .ctx import get
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
+client = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client")
+model_ctx = ContextVar[str]("model_ctx", default="claude-haiku-4-5-20251001")
 
 
 def tool_schema(
@@ -30,6 +35,10 @@ def tool_schema(
     return BetaToolParam(
         name=func.__name__, description=func.__doc__, input_schema=input_schema
     )
+
+
+def user(content: str) -> BetaMessageParam:
+    return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
 def extract_text_and_tool_calls(
@@ -58,43 +67,41 @@ def format_tool_results(
 
     For Anthropic, tool results are added as a new user message.
     """
-    result_blocks = [
-        BetaToolResultBlockParam(type="tool_result", tool_use_id=c.id, content=r)
-        for c, r in zip(tool_calls, results)
-    ]
-    return [{"role": "user", "content": result_blocks}]
+    content = []
+    for c, r in zip(tool_calls, results):
+        r = [BetaTextBlockParam(type="text", text=r)] if isinstance(r, str) else r
+        b = BetaToolResultBlockParam(type="tool_result", tool_use_id=c.id, content=r)
+        content.append(b)
+    return [{"role": "user", "content": content}]
 
 
 async def llm(
-    input: list[BetaMessageParam] | str,
-    client: AsyncAnthropic | AsyncAnthropicVertex,
-    tools: list[Callable[..., Awaitable[str | Iterable[Content]]]] = [],
+    input: list[BetaMessageParam],
+    tools: list[Callable[..., Awaitable[str | Iterable[Content]]]],
     **kwargs: Any,
 ) -> str:
-    """Run Claude models in agentic loop (run until no tool calls, then return text).
-    Tools must be async functions, handle their own errors, and return a string,
+    """Run Claude in agentic loop with optional tools (run until no tool calls, then return text).
+
+    Tools must be async functions, handle their own errors, and return a string
     or iterable of Anthropic content blocks.
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
-
-    Args:
-        input: Conversation history or string (converted to user message)
-        client: AsyncAnthropic or AsyncAnthropicVertex instance (caller manages lifecycle)
-        tools: List of async functions to make available to the model
-        **kwargs: Additional parameters passed to client.beta.messages.stream()
+    Uses prompt caching only when tools are provided (ephemeral cache on last message).
     """
-    tool_schemas = [tool_schema(t) for t in tools] or omit
+    kwargs["model"] = kwargs.get("model", model_ctx.get())
+    tool_schemas = [tool_schema(t) for t in tools]
     tool_dict = {t.__name__: t for t in tools}
 
-    if isinstance(input, str):
-        input = [{"role": "user", "content": input}]
+    while True:
+        if tools:
+            input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-    kwargs["model"] = kwargs.get("model", "claude-sonnet-4-5-20250929")
-
-    while True:  # anthropic requires streaming for very long outputs
-        async with client.beta.messages.stream(
+        async with get(client).beta.messages.stream(
             messages=input, tools=tool_schemas, **kwargs
         ) as s:
             resp = await s.get_final_message()
+
+        if tools:
+            del input[-1]["content"][-1]["cache_control"]  # type: ignore # TODO: fix this
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input.append({"role": "assistant", "content": resp.content})
