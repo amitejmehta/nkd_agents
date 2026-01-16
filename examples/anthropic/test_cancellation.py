@@ -4,7 +4,7 @@ import logging
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaMessageParam
 
-from nkd_agents.anthropic import llm
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -35,34 +35,30 @@ async def main():
     The framework automatically records "Interrupted" as the tool result, so you can
     cancel long operations and keep chatting—the LLM handles it like any other event.
 
-    Without this: malformed conversation, next call fails with API error.
-    With this: interruption becomes transparent, conversation flows naturally.
+    Pattern: Set client once, always pass tools list (required).
     """
-    async with AsyncAnthropic() as client:
-        input: list[BetaMessageParam] = [
-            {"role": "user", "content": "Analyze the sales_data dataset"}
-        ]
+    client.set(AsyncAnthropic())
 
-        task = asyncio.create_task(
-            llm(input, client, tools=[analyze_dataset, add], **KWARGS)
-        )
-        await tool_running.wait()
-        task.cancel()
+    input: list[BetaMessageParam] = [user("Analyze the sales_data dataset")]
 
-        try:
-            await task
-        except asyncio.CancelledError:
-            logger.info("Interrupted")
+    task = asyncio.create_task(llm(input, [analyze_dataset, add], **KWARGS))
+    await tool_running.wait()
+    task.cancel()
 
-        input.append({"role": "user", "content": "Never mind. What's 5 + 3?"})
-        response = await llm(input, client, tools=[analyze_dataset, add], **KWARGS)
-        logger.info(f"Changed mind: {response}")
-        assert "8" in response
+    try:
+        await task
+    except asyncio.CancelledError:
+        logger.info("Interrupted")
 
-        input.append({"role": "user", "content": "What happened to that analysis?"})
-        response = await llm(input, client, tools=[analyze_dataset, add], **KWARGS)
-        logger.info(f"Asked about interruption: {response}")
-        assert "interrupt" in response.lower()
+    input.append(user("Never mind. What's 5 + 3?"))
+    response = await llm(input, [analyze_dataset, add], **KWARGS)
+    logger.info(f"Changed mind: {response}")
+    assert "8" in response
+
+    input.append(user("What happened to that analysis?"))
+    response = await llm(input, [analyze_dataset, add], **KWARGS)
+    logger.info(f"Asked about interruption: {response}")
+    assert "interrupt" in response.lower()
 
 
 if __name__ == "__main__":

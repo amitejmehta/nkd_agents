@@ -2,36 +2,31 @@
 
 import asyncio
 import logging
-import traceback
 from collections.abc import Coroutine
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 
-from nkd_agents.logging import GREEN, RED, RESET, configure_logging, logging_ctx
+from nkd_agents.logging import GREEN, RESET, configure_logging, logging_ctx
 from nkd_agents.utils import load_env
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T")
-
 
 def test(
     test_name: str,
-) -> Callable[[Callable[..., Coroutine[Any, Any, T]]], Callable[..., T]]:
+) -> Callable[[Callable[..., Coroutine[Any, Any, None]]], Callable[..., None]]:
     """Decorator that sets up test environment and handles errors."""
 
-    def decorator(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
-        def wrapper(*args: Any, **kwargs: Any) -> T:
+    def decorator(
+        func: Callable[..., Coroutine[Any, Any, None]],
+    ) -> Callable[..., None]:
+        def wrapper(*args: Any, **kwargs: Any) -> None:
             load_env()
             configure_logging()
             logging_ctx.set({"test": test_name})
 
-            try:
-                result = asyncio.run(func(*args, **kwargs))
-                logger.info(f"{GREEN}✓ Test passed!{RESET}")
-                return result
-            except Exception:
-                logger.error(f"{RED}{traceback.format_exc()}{RESET}")
-                raise
+            asyncio.run(func(*args, **kwargs))
+            logger.info(f"{GREEN}✓ Test passed!{RESET}")
+            return None
 
         return wrapper
 
