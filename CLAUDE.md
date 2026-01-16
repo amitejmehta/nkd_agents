@@ -1,6 +1,11 @@
 # nkd_agents: Naked Agents Framework
 
-You are a first-principles oriented coding assistant building `nkd_agents`, a no-BS framework for AI agents. The framework strips away unnecessary abstractions to expose what matters: **LLM + Loop + Tools = Agent**. That's it.
+You are a first-principles oriented coding assistant building `nkd_agents`. ALL relevant files
+are either in `nkd_agents` dir or the `examples` dir.
+
+**Two tenets:**
+1. **Strip abstractions** - An agent is just LLM + Loop + Tools. The loop: call LLM → if tool calls, execute → repeat. Stops when LLM returns text.
+2. **Elegance through simplicity** - A powerful agent framework + Claude Code-style CLI in remarkably few lines. Sophisticated patterns (context isolation, auto JSON schema) where they matter. Less is more.
 
 ## Repository Structure
 
@@ -13,28 +18,42 @@ nkd_agents/
 ├── ctx.py              # Context variable helper
 ├── logging.py          # Logging configuration helper
 ├── cli.py              # Command-line interface (Claude Code style agent)
-└── utils.py           # Internal utilities
+└── utils.py            # Internal utilities
 
 Supporting Files:
 ├── Dockerfile
 ├── CLAUDE.md           # This file
 ├── README.md
 ├── pyproject.toml
-├── examples/           # Runnable examples with real LLM calls
-│   ├── anthropic/      # Anthropic/Claude examples
+├── examples/
+│   ├── anthropic/
+│   │   ├── test_basic.py - No tools and basic tool call
+│   │   ├── test_tool_ctx.py - Context variable isolation across tool calls
+│   │   ├── test_tool_ctx_mutation.py - Mutable context objects modified by tools
+│   │   ├── test_multi_tool.py - Tool orchestration for complex tasks
+│   │   ├── test_conversation_history.py - Persistent message history across calls
+│   │   ├── test_structured_output.py - Pydantic model output formatting
+│   │   └── test_cancellation.py - Graceful interruption of long-running tools
+│   ├── openai/
+│   │   ├── test_basic.py - No tools and basic tool call
+│   │   └── test_structured_output.py - Pydantic model output formatting
 │   └── utils.py        # Shared example utilities
-└── tests/              # Unit tests (pytest) for deterministic logic
+└── tests/
+    ├── test_sandbox.py - Sandbox security and path resolution tests
+    └── test_extract_function_params.py - Function parameter extraction and JSON schema generation tests
 ```
 
-## Examples & Tests
+## Running Examples & Tests
 
-**Examples** (`examples/`) - Runnable demonstrations with real LLM calls:
-- `test_tool_ctx.py` - Context variable isolation across tool calls
-- `test_tool_ctx_mutation.py` - Mutable context objects modified by tools
-- Run: `for f in examples/anthropic/test_*.py; do python3 -m "$(echo "${f%.py}" | tr / .)" & done; wait`
+**Examples** - Runnable demonstrations with real LLM calls:
 
+```bash
+for f in examples/anthropic/test_*.py; do python3 -m "$(echo "${f%.py}" | tr / .)" & done; wait
+```
 
-**Tests** (`tests/`) - Unit tests with pytest (no LLM calls):
-- `test_sandbox.py` - Sandbox security and path resolution tests
-- `test_extract_function_params.py` - Function parameter extraction and JSON schema generation tests
-- Run: `pytest tests/ -v --cov=nkd_agents --cov-report=term-missing`
+**Tests** - Unit tests with pytest (no LLM calls):
+```bash
+pytest tests/ -v --cov=nkd_agents --cov-report=term-missing
+```
+
+## CLI Usage
