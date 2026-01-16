@@ -10,7 +10,7 @@ from anthropic.types.beta.beta_base64_image_source_param import (
     BetaBase64ImageSourceParam,
 )
 
-from .anthropic import llm, model_ctx, user
+from .anthropic import llm, user
 from .logging import GREEN, RESET, logging_ctx
 from .utils import display_diff
 
@@ -152,7 +152,6 @@ async def subtask(prompt: str, task_label: str) -> str:
             - What the expected output or outcome should be
             - Any constraints or requirements
         task_label: Short 3-5 word summary of the task for progress tracking
-
     Returns:
         Response from the sub-agent
     """
@@ -174,23 +173,12 @@ async def load_image(
 ) -> list[BetaImageBlockParam] | str:
     """Load an image from a given path. Supports jpg, jpeg, png, gif, and webp."""
     try:
-        with open(path, "rb") as image_file:
-            image_data = image_file.read()
-        data = base64.standard_b64encode(image_data).decode("utf-8")
+        bytes = Path(path).read_bytes()
+        data = base64.standard_b64encode(bytes).decode("utf-8")
         source = BetaBase64ImageSourceParam(
             type="base64", media_type=media_type, data=data
         )
         return [{"type": "image", "source": source}]
     except Exception as e:
+        logger.info(f"Error loading image '{path}': {str(e)}")
         return f"Error loading image '{path}': {str(e)}"
-
-
-async def switch_model(model: Literal["haiku", "sonnet"]) -> str:
-    """Switch to a different Claude model for non-trivial tasks.
-
-    - "haiku": Fast, efficient, great for straightforward tasks
-    - "sonnet": Capable, for non-trivial tasks
-    """
-    model_ctx.set({"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-4-5"}[model])
-    logger.info(f"Switched to {GREEN}{model}{RESET}")
-    return f"Switched to {model}"

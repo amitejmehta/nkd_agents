@@ -18,7 +18,6 @@ from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
 client = ContextVar[AsyncOpenAI]("client")
-model_ctx = ContextVar[str]("model_ctx", default="gpt-5.2")
 
 
 def tool_schema(func: Callable[..., Awaitable[Any]]) -> FunctionToolParam:
@@ -85,7 +84,6 @@ async def llm(
     if isinstance(input, str):
         input = [{"role": "user", "content": input}]
 
-    kwargs["model"] = kwargs.get("model", model_ctx.get())
     while True:
         resp = await get(client).responses.parse(
             input=input, tools=tool_schemas, **kwargs
