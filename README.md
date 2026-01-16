@@ -1,18 +1,12 @@
 # nkd_agents
 
-A no-BS framework for AI agents. Import the `llm()` function from any provider and call it. That's it.
+`nkd_agents` is an LLM/Agent framework built upon two tenets:
+1. **Strip abstractions** - In implementation, an agent is just LLM + Loop + Tools. The loop: call LLM → if tool calls, execute → repeat. Stop when LLM returns text.
 
-```python
-# Direct provider import (full control, provider-specific features)
-from nkd_agents.anthropic import llm_loop as llm
-response = await llm("What's 2+2?")
+2. **Elegance through simplicity** - You need far less than you think to build bespoke production-grade AI agents for your use-case.
 
-# Or use convenience wrapper (auto-routing, unified API, auto-validation)
-from nkd_agents import llm
-response = await llm("What's 2+2?", model="claude-sonnet-4-5")
-```
 
-**For detailed documentation, see [`CLAUDE.md`](CLAUDE.md)**
+The best way to get acquainted is to check out our examples! [`examples/anthropic/test_basic.py`](examples/anthropic/test_basic.py) 
 
 ## Installation
 
