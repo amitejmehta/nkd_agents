@@ -20,7 +20,6 @@ from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
 client = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client")
-model_ctx = ContextVar[str]("model_ctx", default="claude-haiku-4-5-20251001")
 
 
 def tool_schema(
@@ -87,7 +86,6 @@ async def llm(
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     Uses prompt caching only when tools are provided (ephemeral cache on last message).
     """
-    kwargs["model"] = kwargs.get("model", model_ctx.get())
     tool_schemas = [tool_schema(t) for t in tools]
     tool_dict = {t.__name__: t for t in tools}
 

@@ -1,37 +1,43 @@
 import asyncio
 import logging
-import os
 import traceback
 from pathlib import Path
+from typing import Literal
 
 from anthropic import AsyncAnthropic, omit
 from anthropic.types.beta import BetaMessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
-from .anthropic import client, llm, model_ctx, user
-from .logging import DIM, RED, RESET, configure_logging
-from .system_prompt import SYSTEM_PROMPT
-from .tools import edit_file, execute_bash, load_image, read_file, subtask, switch_model
+from .anthropic import client, llm, user
+from .logging import DIM, GREEN, RED, RESET, configure_logging
+from .tools import edit_file, execute_bash, load_image, read_file, subtask
 from .utils import load_env
 
 configure_logging()
 load_env()
 
 logger = logging.getLogger(__name__)
-
-# Global settings for easy mutation by tools
-settings = {"max_tokens": 20000, "thinking": omit}
-
 client.set(AsyncAnthropic())
-model_ctx.set("claude-haiku-4-5")
+HAIKU, SONNET = "claude-haiku-4-5", "claude-sonnet-4-5"
+
+
+async def switch_model(model: Literal["claude-haiku-4-5", "claude-sonnet-4-5"]) -> str:
+    """Switch to a different Claude model. Use Haiku for triage, Sonnet for non-trivial tasks."""
+    model_settings["model"] = model
+    logger.info(f"Switched to {GREEN}{model}{RESET}")
+    return f"Switched to {model}"
+
+
+# mutable state
+model_settings = {"model": "claude-sonnet-4-5", "max_tokens": 20000, "thinking": omit}
+tools = [read_file, edit_file, execute_bash, subtask, load_image, switch_model]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
 
-if Path("CLAUDE.md").exists():
-    claude_context = Path("CLAUDE.md").read_text(encoding="utf-8")
-    msgs.append(user(claude_context))
+if Path("CLAUDE.md").exists():  # fetches file from cwd at runtime
+    model_settings["system"] = Path("CLAUDE.md").read_text(encoding="utf-8")
 
 
 async def llm_loop() -> None:
@@ -42,19 +48,7 @@ async def llm_loop() -> None:
     while True:
         msgs.append(await q.get())  # q.get hangs until msg added to queue
 
-        if os.getenv("ANTHROPIC_THINKING_BUDGET") == "true":
-            settings["thinking"] = {"type": "enabled", "budget_tokens": 2048}
-
-        tools = [
-            read_file,
-            edit_file,
-            execute_bash,
-            subtask,
-            load_image,
-            switch_model,
-        ]
-
-        coro = llm(msgs, tools=tools, system=SYSTEM_PROMPT, **settings)
+        coro = llm(msgs, tools=tools, **model_settings)
         llm_task = asyncio.create_task(coro)
 
         try:
@@ -76,6 +70,12 @@ async def user_input() -> None:
         logger.info(f"{DIM}Cleared {len(msgs)} msgs{RESET}")
         msgs.clear()
 
+    @kb.add("c-j")
+    def switch_model(event: KeyPressEvent) -> None:
+        map = {HAIKU: SONNET, SONNET: HAIKU}
+        model_settings["model"] = map[model_settings["model"]]
+        logger.info(f"{DIM}Switched to {GREEN}{model_settings["model"]}{RESET}")
+
     @kb.add("escape")
     def interrupt(event: KeyPressEvent) -> None:
         event.app.exit()
@@ -88,8 +88,10 @@ async def user_input() -> None:
 
     @kb.add("tab")
     def toggle_thinking(event: KeyPressEvent) -> None:
-        current = os.getenv("ANTHROPIC_THINKING_BUDGET") == "true"
-        os.environ["ANTHROPIC_THINKING_BUDGET"] = str(not current).lower()
+        current = model_settings["thinking"] != omit
+        model_settings["thinking"] = (
+            omit if current else {"type": "enabled", "budget_tokens": 2048}
+        )
         logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
     style = styles.Style.from_dict({"": "ansibrightblack"})
@@ -104,8 +106,9 @@ async def user_input() -> None:
 async def main_async() -> None:
     """Launch user input and LLM loops in parallel."""
     logger.info(
-        f"\n{DIM}nkd_agents"
-        "'tab':     thinking\n"
+        f"\n\n{DIM}nkd_agents\n\n"
+        "'tab':     toggle thinking\n"
+        "'ctrl+j':  switch model\n"
         "'esc':     interrupt\n"
         "'esc esc': clear input\n"
         "'ctrl+u':  clear line\n"
