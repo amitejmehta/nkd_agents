@@ -5,13 +5,12 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
-from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaImageBlockParam
 from anthropic.types.beta.beta_base64_image_source_param import (
     BetaBase64ImageSourceParam,
 )
 
-from .anthropic import llm
+from .anthropic import llm, model_ctx, user
 from .logging import GREEN, RESET, logging_ctx
 from .utils import display_diff
 
@@ -161,8 +160,7 @@ async def subtask(prompt: str, task_label: str) -> str:
 
     try:
         tools = [read_file, edit_file, execute_bash]
-        async with AsyncAnthropic() as client:
-            response = await llm(prompt, client, tools=tools, max_tokens=20000)
+        response = await llm([user(prompt)], tools, max_tokens=20000)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
 
@@ -185,3 +183,14 @@ async def load_image(
         return [{"type": "image", "source": source}]
     except Exception as e:
         return f"Error loading image '{path}': {str(e)}"
+
+
+async def switch_model(model: Literal["haiku", "sonnet"]) -> str:
+    """Switch to a different Claude model for non-trivial tasks.
+
+    - "haiku": Fast, efficient, great for straightforward tasks
+    - "sonnet": Capable, for non-trivial tasks
+    """
+    model_ctx.set({"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-4-5"}[model])
+    logger.info(f"Switched to {GREEN}{model}{RESET}")
+    return f"Switched to {model}"
