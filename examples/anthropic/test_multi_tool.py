@@ -2,7 +2,7 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import llm
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -37,11 +37,14 @@ async def main():
 
     The framework's agentic loop handles the complexity: tool A's output feeds into
     the decision to call tool B, then synthesize into a final answer.
+
+    Pattern: Set client once, pass tools list (required).
     """
     prompt = "I want to visit Tokyo from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     tools = [search_flights, search_hotels, calculate_total_cost]
-    async with AsyncAnthropic() as client:
-        response = await llm(prompt, client, tools=tools, **KWARGS)
+
+    client.set(AsyncAnthropic())
+    response = await llm([user(prompt)], tools, **KWARGS)
 
     assert "450" in response or "$450" in response
     assert "60" in response or "$60" in response

@@ -2,7 +2,7 @@ import logging
 
 from openai import AsyncOpenAI
 
-from nkd_agents.openai import llm
+from nkd_agents.openai import client, llm
 
 from ..utils import test
 from .model_settings import MODEL
@@ -30,20 +30,22 @@ async def main():
     """Test basic LLM usage patterns.
 
     Demonstrates:
-    1. Simple string prompt
+    1. Simple string prompt with no tools
     2. Basic tool call
+
+    Key pattern: Set client context var once, always pass tools list (required).
     """
     prompt = "What's the weather in Paris?"
+    client.set(AsyncOpenAI())
 
-    async with AsyncOpenAI() as client:
-        # 1. Most basic usage: just pass a string prompt
-        logger.info("1. Basic usage")
-        _ = await llm(prompt, client, model=MODEL)
+    # 1. No tools - pass empty list
+    logger.info("1. Basic usage (no tools)")
+    _ = await llm(prompt, [], model=MODEL)
 
-        # 2. Tool call
-        logger.info("2. Tool call")
-        response = await llm(prompt, client, tools=[get_weather], model=MODEL)
-        assert "sunny" in response.lower() and "72" in response.lower()
+    # 2. With tools
+    logger.info("2. Tool call")
+    response = await llm(prompt, [get_weather], model=MODEL)
+    assert "sunny" in response.lower() and "72" in response.lower()
 
 
 if __name__ == "__main__":

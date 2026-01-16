@@ -3,7 +3,7 @@ import logging
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaMessageParam
 
-from nkd_agents.anthropic import llm
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -32,15 +32,18 @@ async def main():
 
     Demonstrates:
     1. Conversation history with message list persisted across calls
+
+    Pattern: Set client once, pass tools (empty list when no tools).
     """
     logger.info("1. Conversation history")
-    msgs: list[BetaMessageParam] = [{"role": "user", "content": "I live in Paris"}]
-    async with AsyncAnthropic() as client:
-        _ = await llm(msgs, client, **KWARGS)
+    client.set(AsyncAnthropic())
 
-        msgs.append({"role": "user", "content": "What's the weather?"})
-        response = await llm(msgs, client, tools=[get_weather], **KWARGS)
-        assert "sunny" in response.lower() and "72" in response.lower()
+    msgs: list[BetaMessageParam] = [user("I live in Paris")]
+    _ = await llm(msgs, [], **KWARGS)
+
+    msgs.append(user("What's the weather?"))
+    response = await llm(msgs, [get_weather], **KWARGS)
+    assert "sunny" in response.lower() and "72" in response.lower()
 
 
 if __name__ == "__main__":

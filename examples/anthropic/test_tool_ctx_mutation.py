@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import llm
+from nkd_agents.anthropic import client, llm, user
 from nkd_agents.ctx import ctx
 
 from ..utils import test
@@ -43,19 +43,15 @@ async def main():
     object (like a dataclass with frozen=False), tools can mutate it in-place and
     mutations remain visible after llm() returns.
 
-    In order to prevent mutation bleed, you need to create a fresh object each time:
-    `with ctx(document, Document(content=item))`.
-
-    Whether mutation is desirable depends on your use case: it's useful for accumulating
-    state (like building a document) but problematic if you need isolation between runs.
+    Pattern: Set client and document context vars. Tools inherit contexts and can mutate.
     """
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
+    client.set(AsyncAnthropic())
     with ctx(document, doc):
         prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-        async with AsyncAnthropic() as client:
-            await llm(prompt, client, tools=[edit_string], **KWARGS)
+        await llm([user(prompt)], [edit_string], **KWARGS)
 
     logger.info(f"After: {doc.content}")
 
