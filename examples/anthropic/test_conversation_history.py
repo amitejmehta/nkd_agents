@@ -3,7 +3,7 @@ import logging
 from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaMessageParam
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -36,14 +36,13 @@ async def main():
     Pattern: Set client once, pass tools (empty list when no tools).
     """
     logger.info("1. Conversation history")
-    client.set(AsyncAnthropic())
+    async with AsyncAnthropic() as client:
+        msgs: list[BetaMessageParam] = [user("I live in Paris")]
+        _ = await llm(client, msgs, [], **KWARGS)
 
-    msgs: list[BetaMessageParam] = [user("I live in Paris")]
-    _ = await llm(msgs, [], **KWARGS)
-
-    msgs.append(user("What's the weather?"))
-    response = await llm(msgs, [get_weather], **KWARGS)
-    assert "sunny" in response.lower() and "72" in response.lower()
+        msgs.append(user("What's the weather?"))
+        response = await llm(client, msgs, [get_weather], **KWARGS)
+        assert "sunny" in response.lower() and "72" in response.lower()
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import logging
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from nkd_agents.openai import client, llm
+from nkd_agents.openai import llm, user
 
 from ..utils import test
 from .model_settings import MODEL
@@ -43,20 +43,21 @@ async def main():
 
     Pattern: Set client once, always pass tools list (required).
     """
-    prompt = "What's the weather in Paris?"
-    client.set(AsyncOpenAI())
+    input = [user("What's the weather in Paris?")]
+    async with AsyncOpenAI() as client:
+        # 1. Structured output: pass empty tools list
+        logger.info("1. Structured output (no tools)")
+        response = await llm(client, input, [], text_format=Weather, model=MODEL)
+        weather = Weather.model_validate_json(response)
 
-    # 1. Structured output: pass empty tools list
-    logger.info("1. Structured output")
-    response = await llm(prompt, [], text_format=Weather, model=MODEL)
-    weather = Weather.model_validate_json(response)
-
-    # 2. Tool call with structured output
-    logger.info("2. Tool call with structured output")
-    response2 = await llm(prompt, [get_weather], text_format=Weather, model=MODEL)
-    weather = Weather.model_validate_json(response2)
-    assert weather.temperature == 72
-    assert "sunny" in weather.description.lower()
+        # 2. Tool call with structured output
+        logger.info("2. Tool call with structured output")
+        response2 = await llm(
+            client, input, [get_weather], text_format=Weather, model=MODEL
+        )
+        weather = Weather.model_validate_json(response2)
+        assert weather.temperature == 72
+        assert "sunny" in weather.description.lower()
 
 
 if __name__ == "__main__":

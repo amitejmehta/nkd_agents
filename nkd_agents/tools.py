@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
+from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaImageBlockParam
 from anthropic.types.beta.beta_base64_image_source_param import (
     BetaBase64ImageSourceParam,
@@ -159,7 +160,7 @@ async def subtask(prompt: str, task_label: str) -> str:
 
     try:
         tools = [read_file, edit_file, execute_bash]
-        response = await llm([user(prompt)], tools, max_tokens=20000)
+        response = await llm(AsyncAnthropic(), [user(prompt)], tools, max_tokens=20000)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
 

@@ -2,7 +2,7 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -36,15 +36,15 @@ async def main():
     Key pattern: Set client context var once, always pass tools list (required even if empty).
     """
     prompt = "What's the weather in Paris?"
-    client.set(AsyncAnthropic())
     # 1. No tools - pass empty list
-    logger.info("1. Basic usage (no tools)")
-    _ = await llm([user(prompt)], tools=[], **KWARGS)
+    async with AsyncAnthropic() as client:
+        logger.info("1. Basic usage (no tools)")
+        _ = await llm(client, [user(prompt)], [], **KWARGS)
 
-    # 2. With tools
-    logger.info("2. Tool call")
-    response = await llm([user(prompt)], tools=[get_weather], **KWARGS)
-    assert "sunny" in response.lower() and "72" in response.lower()
+        # 2. With tools
+        logger.info("2. Tool call")
+        response = await llm(client, [user(prompt)], [get_weather], **KWARGS)
+        assert "sunny" in response.lower() and "72" in response.lower()
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 from nkd_agents.ctx import ctx
 
 from ..utils import test
@@ -48,15 +48,15 @@ async def main():
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
-    client.set(AsyncAnthropic())
-    with ctx(document, doc):
-        prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-        await llm([user(prompt)], [edit_string], **KWARGS)
+    async with AsyncAnthropic() as client:
+        with ctx(document, doc):
+            prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
+            await llm(client, [user(prompt)], [edit_string], **KWARGS)
 
-    logger.info(f"After: {doc.content}")
+        logger.info(f"After: {doc.content}")
 
-    expected = "The quick brown cat jumps over the lazy dog"
-    assert doc.content == expected
+        expected = "The quick brown cat jumps over the lazy dog"
+        assert doc.content == expected
 
 
 if __name__ == "__main__":

@@ -1,10 +1,9 @@
 import asyncio
 import json
 import logging
-from contextvars import ContextVar
 from typing import Any, Awaitable, Callable
 
-from openai import AsyncOpenAI, omit
+from openai import AsyncOpenAI
 from openai.types.responses import (
     FunctionToolParam,
     ParsedResponse,
@@ -13,11 +12,13 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput
 
-from .ctx import get
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
-client = ContextVar[AsyncOpenAI]("client")
+
+
+def user(content: str) -> ResponseInputItemParam:
+    return {"role": "user", "content": [{"type": "input_text", "text": content}]}
 
 
 def tool_schema(func: Callable[..., Awaitable[Any]]) -> FunctionToolParam:
@@ -70,7 +71,8 @@ def format_tool_results(
 
 
 async def llm(
-    input: list[ResponseInputItemParam] | str,
+    client: AsyncOpenAI,
+    input: list[ResponseInputItemParam],
     tools: list[Callable[..., Awaitable[Any]]],
     **kwargs: Any,
 ) -> str:
@@ -78,16 +80,11 @@ async def llm(
     Tools must be async functions, handle their own errors, and return a string,
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
-    tool_schemas = [tool_schema(t) for t in tools] or omit
+    tool_schemas = [tool_schema(t) for t in tools]
     tool_dict = {t.__name__: t for t in tools}
 
-    if isinstance(input, str):
-        input = [{"role": "user", "content": input}]
-
     while True:
-        resp = await get(client).responses.parse(
-            input=input, tools=tool_schemas, **kwargs
-        )
+        resp = await client.responses.parse(input=input, tools=tool_schemas, **kwargs)
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this
@@ -97,7 +94,7 @@ async def llm(
 
         try:
             tasks = [tool_dict[c.name](**json.loads(c.arguments)) for c in tool_calls]
-            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))  # type: ignore # TODO: fix this
+            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))
         except asyncio.CancelledError:
-            input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))  # type: ignore # TODO: fix this
+            input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))
             raise

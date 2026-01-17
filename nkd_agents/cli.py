@@ -9,16 +9,17 @@ from anthropic.types.beta import BetaMessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
-from .anthropic import client, llm, user
+from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
 from .tools import edit_file, execute_bash, load_image, read_file, subtask
 from .utils import load_env
 
 configure_logging()
-load_env()
-
 logger = logging.getLogger(__name__)
-client.set(AsyncAnthropic())
+
+load_env()
+client = AsyncAnthropic()
+
 HAIKU, SONNET = "claude-haiku-4-5", "claude-sonnet-4-5"
 
 
@@ -35,6 +36,7 @@ tools = [read_file, edit_file, execute_bash, subtask, load_image, switch_model]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
+starting_phrase = "Be brief and exacting."
 
 if Path("CLAUDE.md").exists():  # fetches file from cwd at runtime
     model_settings["system"] = Path("CLAUDE.md").read_text(encoding="utf-8")
@@ -48,7 +50,7 @@ async def llm_loop() -> None:
     while True:
         msgs.append(await q.get())  # q.get hangs until msg added to queue
 
-        coro = llm(msgs, tools=tools, **model_settings)
+        coro = llm(client, msgs, tools, **model_settings)
         llm_task = asyncio.create_task(coro)
 
         try:
@@ -63,6 +65,7 @@ async def llm_loop() -> None:
 
 async def user_input() -> None:
     """Configure then launch user chat CLI"""
+    global starting_phrase
     kb = key_binding.KeyBindings()
 
     @kb.add("c-k")
@@ -75,6 +78,15 @@ async def user_input() -> None:
         map = {HAIKU: SONNET, SONNET: HAIKU}
         model_settings["model"] = map[model_settings["model"]]
         logger.info(f"{DIM}Switched to {GREEN}{model_settings["model"]}{RESET}")
+
+    @kb.add("c-p")
+    def set_starting_phrase(event: KeyPressEvent) -> None:
+        global starting_phrase
+        text = event.app.current_buffer.text.strip()
+        event.app.current_buffer.text = ""
+        if text:
+            starting_phrase = text
+            logger.info(f"{DIM}Starting phrase: {GREEN}{starting_phrase}{RESET}")
 
     @kb.add("escape")
     def interrupt(event: KeyPressEvent) -> None:
@@ -100,7 +112,7 @@ async def user_input() -> None:
     while True:
         text: str = await session.prompt_async("> ")
         if text and text.strip():
-            await q.put(user(text.strip()))
+            await q.put(user(f"{starting_phrase} {text.strip()}"))
 
 
 async def main_async() -> None:
@@ -109,6 +121,7 @@ async def main_async() -> None:
         f"\n\n{DIM}nkd_agents\n\n"
         "'tab':     toggle thinking\n"
         "'ctrl+j':  switch model\n"
+        "'ctrl+p':  set starting phrase\n"
         "'esc':     interrupt\n"
         "'esc esc': clear input\n"
         "'ctrl+u':  clear line\n"
@@ -122,6 +135,8 @@ async def main_async() -> None:
 
     except (KeyboardInterrupt, EOFError):
         logger.info(f"{DIM}Exiting...{RESET}")
+    finally:
+        await client.close()
 
 
 def main() -> None:
