@@ -2,7 +2,7 @@ import logging
 
 from openai import AsyncOpenAI
 
-from nkd_agents.openai import client, llm
+from nkd_agents.openai import llm, user
 
 from ..utils import test
 from .model_settings import MODEL
@@ -35,17 +35,16 @@ async def main():
 
     Key pattern: Set client context var once, always pass tools list (required).
     """
-    prompt = "What's the weather in Paris?"
-    client.set(AsyncOpenAI())
+    input = [user("What's the weather in Paris?")]
+    async with AsyncOpenAI() as client:
+        # 1. No tools - pass empty list
+        logger.info("1. Basic usage (no tools)")
+        _ = await llm(client, input, [], model=MODEL)
 
-    # 1. No tools - pass empty list
-    logger.info("1. Basic usage (no tools)")
-    _ = await llm(prompt, [], model=MODEL)
-
-    # 2. With tools
-    logger.info("2. Tool call")
-    response = await llm(prompt, [get_weather], model=MODEL)
-    assert "sunny" in response.lower() and "72" in response.lower()
+        # 2. With tools
+        logger.info("2. Tool call")
+        response = await llm(client, input, [get_weather], model=MODEL)
+        assert "sunny" in response.lower() and "72" in response.lower()
 
 
 if __name__ == "__main__":

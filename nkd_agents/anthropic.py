@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Iterable
 
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex
@@ -15,11 +14,13 @@ from anthropic.types.beta.beta_tool_result_block_param import Content
 from anthropic.types.beta.parsed_beta_message import ParsedBetaMessage
 from pydantic import BaseModel
 
-from .ctx import get
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
-client = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client")
+
+
+def user(content: str) -> BetaMessageParam:
+    return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
 def tool_schema(
@@ -34,10 +35,6 @@ def tool_schema(
     return BetaToolParam(
         name=func.__name__, description=func.__doc__, input_schema=input_schema
     )
-
-
-def user(content: str) -> BetaMessageParam:
-    return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
 def extract_text_and_tool_calls(
@@ -75,6 +72,7 @@ def format_tool_results(
 
 
 async def llm(
+    client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[BetaMessageParam],
     tools: list[Callable[..., Awaitable[str | Iterable[Content]]]],
     **kwargs: Any,
@@ -93,7 +91,7 @@ async def llm(
         if tools:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        async with get(client).beta.messages.stream(
+        async with client.beta.messages.stream(
             messages=input, tools=tool_schemas, **kwargs
         ) as s:
             resp = await s.get_final_message()

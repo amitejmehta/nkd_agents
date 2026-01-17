@@ -2,7 +2,7 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -43,12 +43,11 @@ async def main():
     prompt = "I want to visit Tokyo from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     tools = [search_flights, search_hotels, calculate_total_cost]
 
-    client.set(AsyncAnthropic())
-    response = await llm([user(prompt)], tools, **KWARGS)
-
-    assert "450" in response or "$450" in response
-    assert "60" in response or "$60" in response
-    assert "690" in response or "$690" in response
+    async with AsyncAnthropic() as client:
+        response = await llm(client, [user(prompt)], tools, **KWARGS)
+        assert "450" in response or "$450" in response
+        assert "60" in response or "$60" in response
+        assert "690" in response or "$690" in response
 
 
 if __name__ == "__main__":

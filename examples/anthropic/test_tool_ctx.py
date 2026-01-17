@@ -3,7 +3,7 @@ from contextvars import ContextVar
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 from nkd_agents.ctx import ctx
 
 from ..utils import test
@@ -35,15 +35,14 @@ async def main():
     Pattern: Set client once, use ctx() for scoped language context. Always pass tools.
     """
     prompt = "Greet Alice"
-    client.set(AsyncAnthropic())
+    async with AsyncAnthropic() as client:
+        with ctx(current_language, "english"):
+            response_en = await llm(client, [user(prompt)], [greet], **KWARGS)
+            assert "Hello" in response_en or "hello" in response_en.lower()
 
-    with ctx(current_language, "english"):
-        response_en = await llm([user(prompt)], [greet], **KWARGS)
-        assert "Hello" in response_en or "hello" in response_en.lower()
-
-    with ctx(current_language, "spanish"):
-        response_es = await llm([user(prompt)], [greet], **KWARGS)
-        assert "Hola" in response_es or "hola" in response_es.lower()
+        with ctx(current_language, "spanish"):
+            response_es = await llm(client, [user(prompt)], [greet], **KWARGS)
+            assert "Hola" in response_es or "hola" in response_es.lower()
 
 
 if __name__ == "__main__":

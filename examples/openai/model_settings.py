@@ -2,4 +2,7 @@
 
 import os
 
-MODEL = os.getenv("MODEL", "gpt-5-nano-2025-08-07")
+from nkd_agents.utils import load_env
+
+load_env()
+MODEL = os.getenv("MODEL", "gpt-5.2")
