@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from nkd_agents.tools import edit_file, execute_bash, read_file, sandbox_ctx
+from nkd_agents.tools import bash, edit_file, read_file, sandbox_ctx
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ class TestSandboxBasicBehavior:
     @pytest.mark.asyncio
     async def test_default_no_sandbox(self):
         """Without sandbox set, operations use cwd."""
-        result = await execute_bash("pwd")
+        result = await bash("pwd")
         assert "STDOUT:" in result
         assert "EXIT CODE: 0" in result
 
@@ -47,7 +47,7 @@ class TestSandboxBasicBehavior:
         assert result == "Hello sandbox!"
 
         # Bash in sandbox
-        result = await execute_bash("cat test.txt")
+        result = await bash("cat test.txt")
         assert "Hello sandbox!" in result
 
     @pytest.mark.asyncio
@@ -55,12 +55,12 @@ class TestSandboxBasicBehavior:
         """Sandbox can be set and reset."""
         # Set sandbox
         sandbox_ctx.set(sandbox_dir)
-        result = await execute_bash("pwd")
+        result = await bash("pwd")
         assert sandbox_dir in result
 
         # Reset
         sandbox_ctx.set(None)
-        result = await execute_bash("pwd")
+        result = await bash("pwd")
         assert sandbox_dir not in result
 
 

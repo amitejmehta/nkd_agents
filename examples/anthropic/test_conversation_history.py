@@ -38,10 +38,10 @@ async def main():
     logger.info("1. Conversation history")
     async with AsyncAnthropic() as client:
         msgs: list[BetaMessageParam] = [user("I live in Paris")]
-        _ = await llm(client, msgs, [], **KWARGS)
+        _ = await llm(client, msgs, **KWARGS)
 
         msgs.append(user("What's the weather?"))
-        response = await llm(client, msgs, [get_weather], **KWARGS)
+        response = await llm(client, msgs, tools=[get_weather], **KWARGS)
         assert "sunny" in response.lower() and "72" in response.lower()
 
 

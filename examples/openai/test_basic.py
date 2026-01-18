@@ -32,18 +32,16 @@ async def main():
     Demonstrates:
     1. Simple string prompt with no tools
     2. Basic tool call
-
-    Key pattern: Set client context var once, always pass tools list (required).
     """
     input = [user("What's the weather in Paris?")]
     async with AsyncOpenAI() as client:
         # 1. No tools - pass empty list
         logger.info("1. Basic usage (no tools)")
-        _ = await llm(client, input, [], model=MODEL)
+        _ = await llm(client, input, model=MODEL)
 
         # 2. With tools
         logger.info("2. Tool call")
-        response = await llm(client, input, [get_weather], model=MODEL)
+        response = await llm(client, input, tools=[get_weather], model=MODEL)
         assert "sunny" in response.lower() and "72" in response.lower()
 
 
