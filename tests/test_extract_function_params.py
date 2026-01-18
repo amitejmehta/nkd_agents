@@ -298,7 +298,9 @@ class TestListTypes:
         with pytest.raises(ValueError) as exc_info:
             extract_function_params(func)
         error_msg = str(exc_info.value).lower()
-        assert "list" in error_msg and ("empty" in error_msg or "must have type parameter" in error_msg)
+        assert "list" in error_msg and (
+            "empty" in error_msg or "must have type parameter" in error_msg
+        )
 
     @pytest.mark.asyncio
     async def test_list_of_unsupported_type_raises_error(self):
