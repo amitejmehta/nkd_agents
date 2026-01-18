@@ -44,7 +44,7 @@ async def main():
     tools = [search_flights, search_hotels, calculate_total_cost]
 
     async with AsyncAnthropic() as client:
-        response = await llm(client, [user(prompt)], tools, **KWARGS)
+        response = await llm(client, [user(prompt)], tools=tools, **KWARGS)
         assert "450" in response or "$450" in response
         assert "60" in response or "$60" in response
         assert "690" in response or "$690" in response

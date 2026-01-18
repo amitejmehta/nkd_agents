@@ -51,7 +51,7 @@ async def main():
     async with AsyncAnthropic() as client:
         with ctx(document, doc):
             prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-            await llm(client, [user(prompt)], [edit_string], **KWARGS)
+            await llm(client, [user(prompt)], tools=[edit_string], **KWARGS)
 
         logger.info(f"After: {doc.content}")
 

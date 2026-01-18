@@ -11,7 +11,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
-from .tools import edit_file, execute_bash, load_image, read_file, subtask
+from .tools import bash, edit_file, load_image, read_file, subtask
 from .utils import load_env
 
 configure_logging()
@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 load_env()
 client = AsyncAnthropic()
-
-HAIKU, SONNET = "claude-haiku-4-5", "claude-sonnet-4-5"
 
 
 async def switch_model(model: Literal["claude-haiku-4-5", "claude-sonnet-4-5"]) -> str:
@@ -31,8 +29,10 @@ async def switch_model(model: Literal["claude-haiku-4-5", "claude-sonnet-4-5"]) 
 
 
 # mutable state
+models = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
+current_model_idx = 1
 model_settings = {"model": "claude-sonnet-4-5", "max_tokens": 20000, "thinking": omit}
-tools = [read_file, edit_file, execute_bash, subtask, load_image, switch_model]
+tools = [read_file, edit_file, bash, subtask, load_image, switch_model]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
@@ -56,7 +56,7 @@ async def llm_loop() -> None:
         try:
             _ = await llm_task
         except asyncio.CancelledError:
-            logger.info(f"{RED}...Interrupted. What now?{RESET}")
+            pass
         except Exception:
             logger.error(f"{RED}{traceback.format_exc()}{RESET}")
         finally:
@@ -71,25 +71,29 @@ async def user_input() -> None:
     @kb.add("c-k")
     def clear_history(event: KeyPressEvent) -> None:
         logger.info(f"{DIM}Cleared {len(msgs)} msgs{RESET}")
+        event.app.exit()
         msgs.clear()
 
     @kb.add("c-j")
     def switch_model(event: KeyPressEvent) -> None:
-        map = {HAIKU: SONNET, SONNET: HAIKU}
-        model_settings["model"] = map[model_settings["model"]]
+        global current_model_idx
+        current_model_idx = (current_model_idx + 1) % len(models)
+        model_settings["model"] = models[current_model_idx]
         logger.info(f"{DIM}Switched to {GREEN}{model_settings["model"]}{RESET}")
+        event.app.exit()
 
     @kb.add("c-p")
     def set_starting_phrase(event: KeyPressEvent) -> None:
         global starting_phrase
         text = event.app.current_buffer.text.strip()
         event.app.current_buffer.text = ""
-        if text:
-            starting_phrase = text
-            logger.info(f"{DIM}Starting phrase: {GREEN}{starting_phrase}{RESET}")
+        starting_phrase = text
+        logger.info(f"{DIM}Starting phrase: {GREEN}{starting_phrase or 'None'}{RESET}")
+        event.app.exit()
 
     @kb.add("escape")
     def interrupt(event: KeyPressEvent) -> None:
+        logger.info(f"{RED}...Interrupted. What now?{RESET}")
         event.app.exit()
         if llm_task and not llm_task.done():
             llm_task.cancel()
@@ -105,6 +109,7 @@ async def user_input() -> None:
             omit if current else {"type": "enabled", "budget_tokens": 2048}
         )
         logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
+        event.app.exit()
 
     style = styles.Style.from_dict({"": "ansibrightblack"})
     session = PromptSession(key_bindings=kb, style=style)

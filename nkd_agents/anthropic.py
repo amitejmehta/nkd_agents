@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def user(content: str) -> BetaMessageParam:
+    "Take a string and return a full Anthropicuser message."
     return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
@@ -74,7 +75,7 @@ def format_tool_results(
 async def llm(
     client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[BetaMessageParam],
-    tools: list[Callable[..., Awaitable[str | Iterable[Content]]]],
+    tools: list[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop with optional tools (run until no tool calls, then return text).
@@ -84,8 +85,9 @@ async def llm(
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     Uses prompt caching only when tools are provided (ephemeral cache on last message).
     """
-    tool_schemas = [tool_schema(t) for t in tools]
-    tool_dict = {t.__name__: t for t in tools}
+    tools = tools or []
+    tool_schemas = [tool_schema(fn) for fn in tools]
+    tool_dict = {fn.__name__: fn for fn in tools}
 
     while True:
         if tools:

@@ -18,7 +18,7 @@ from .utils import display_diff
 logger = logging.getLogger(__name__)
 
 # Context variable for sandbox directory - when set, all file operations (read_file,
-# edit_file, execute_bash) are restricted to this directory. Only relative paths are
+# edit_file, bash) are restricted to this directory. Only relative paths are
 # allowed when sandbox is active (absolute paths will error). This prevents escaping the sandbox.
 sandbox_ctx = ContextVar[str | None]("sandbox_ctx", default=None)
 
@@ -107,7 +107,7 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         return f"Error editing file '{path}': {str(e)}"
 
 
-async def execute_bash(command: str) -> str:
+async def bash(command: str) -> str:
     """Execute a bash command and return the results.
 
     Returns one of the following strings:
@@ -159,7 +159,7 @@ async def subtask(prompt: str, task_label: str) -> str:
     logging_ctx.set({"subtask": task_label})
 
     try:
-        tools = [read_file, edit_file, execute_bash]
+        tools = [read_file, edit_file, bash]
         response = await llm(AsyncAnthropic(), [user(prompt)], tools, max_tokens=20000)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"

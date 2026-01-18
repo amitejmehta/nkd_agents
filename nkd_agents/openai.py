@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def user(content: str) -> ResponseInputItemParam:
+    "Take a string and return a full OpenAI user message."
     return {"role": "user", "content": [{"type": "input_text", "text": content}]}
 
 
@@ -74,17 +75,17 @@ def format_tool_results(
 async def llm(
     client: AsyncOpenAI,
     input: list[ResponseInputItemParam],
-    tools: list[
-        Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
-    ],
+    tools: list[Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]]
+    | None = None,
     **kwargs: Any,
 ) -> str:
     """Run GPT models in agentic loop (run until no tool calls, then return text).
     Tools must be async functions, handle their own errors, and return a string,
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
-    tool_schemas = [tool_schema(t) for t in tools]
-    tool_dict = {t.__name__: t for t in tools}
+    tools = tools or []
+    tool_schemas = [tool_schema(fn) for fn in tools]
+    tool_dict = {fn.__name__: fn for fn in tools}
 
     while True:
         resp = await client.responses.parse(input=input, tools=tool_schemas, **kwargs)

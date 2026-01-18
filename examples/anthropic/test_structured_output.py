@@ -40,21 +40,20 @@ async def main():
     Demonstrates:
     1. Structured output with Pydantic model
     2. Tool call with structured output
-
-    Pattern: Set client once, always pass tools list (required).
     """
     prompt = "What's the weather in Paris?"
     kwargs = {"betas": ["structured-outputs-2025-11-13"], "output_format": Weather}
+    kwargs = {**KWARGS, **kwargs}
 
     async with AsyncAnthropic() as client:
-        # 1. Structured output: pass empty tools list
+        # 1. Structured output
         logger.info("1. Structured output")
-        response = await llm(client, [user(prompt)], [], **KWARGS, **kwargs)
+        response = await llm(client, [user(prompt)], **kwargs)
         weather = Weather.model_validate_json(response)
 
         # 2. Tool call with structured output
         logger.info("2. Tool call with structured output")
-        response2 = await llm(client, [user(prompt)], [get_weather], **KWARGS, **kwargs)
+        response2 = await llm(client, [user(prompt)], tools=[get_weather], **kwargs)
         weather = Weather.model_validate_json(response2)
         assert weather.temperature == 72
         assert "sunny" in weather.description.lower()

@@ -21,7 +21,7 @@ uv pip install -U nkd_agents[cli]
 
 ## Chat
 
-Chat with your own Claude Code style agent! Uses the `llm` function with `read_file`, `edit_file`, `execute_bash`, and `subtask` (sub-agent) tools.
+Chat with your own Claude Code style agent! Uses the `llm` function with `read_file`, `edit_file`, `bash`, and `subtask` (sub-agent) tools.
 
 ```bash
 export ANTHROPIC_API_KEY=your_api_key_here
