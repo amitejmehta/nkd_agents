@@ -5,25 +5,6 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
-def get(context_var: ContextVar[T]) -> T:
-    """Get a contextvar value, raising an error if not set.
-
-    Args:
-        context_var: The ContextVar to get
-
-    Returns:
-        The context variable's value
-
-    Raises:
-        ValueError: If the context variable is not set
-    """
-    try:
-        return context_var.get()
-    except LookupError:
-        var_name = getattr(context_var, "name", "context variable")
-        raise ValueError(f"{var_name} not set in context")
-
-
 @contextmanager
 def ctx(context_var: ContextVar[T], value: T):
     """

@@ -8,6 +8,7 @@ from openai.types.responses import (
     FunctionToolParam,
     ParsedResponse,
     ParsedResponseFunctionToolCall,
+    ResponseFunctionCallOutputItemListParam,
     ResponseInputItemParam,
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput
@@ -58,7 +59,7 @@ def extract_text_and_tool_calls(
 
 def format_tool_results(
     tool_calls: list[ParsedResponseFunctionToolCall],
-    results: list[Any],
+    results: list[str | ResponseFunctionCallOutputItemListParam],
 ) -> list[FunctionCallOutput]:
     """Format tool results into messages to append to conversation.
 
@@ -73,7 +74,9 @@ def format_tool_results(
 async def llm(
     client: AsyncOpenAI,
     input: list[ResponseInputItemParam],
-    tools: list[Callable[..., Awaitable[Any]]],
+    tools: list[
+        Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
+    ],
     **kwargs: Any,
 ) -> str:
     """Run GPT models in agentic loop (run until no tool calls, then return text).
