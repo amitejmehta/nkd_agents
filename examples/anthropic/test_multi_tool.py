@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from anthropic import AsyncAnthropic
 
@@ -10,12 +11,13 @@ from .model_settings import KWARGS
 logger = logging.getLogger(__name__)
 
 
-async def search_flights(origin: str, destination: str) -> str:
-    """Search for available flights between two cities."""
-    return f"Found 3 flights from {origin} to {destination}: $450, $520, $680"
+async def search_flights(origin: str, destinations: list[str]) -> str:
+    """Search for available flights from origin to multiple destinations."""
+    results = [f"{dest}: $450, $520, $680" for dest in destinations]
+    return "Found flights - " + " | ".join(results)
 
 
-async def search_hotels(city: str, budget: str) -> str:
+async def search_hotels(city: str, budget: Literal["low", "medium", "high"]) -> str:
     """Search for hotels in a city within a budget range."""
     return f"Found 5 hotels in {city} ({budget} budget): Grand Plaza ($120/night), City Inn ($85/night), Budget Stay ($60/night)"
 
@@ -40,7 +42,7 @@ async def main():
 
     Pattern: Set client once, pass tools list (required).
     """
-    prompt = "I want to visit Tokyo from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
+    prompt = "I want to visit Tokyo or Osaka from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     tools = [search_flights, search_hotels, calculate_total_cost]
 
     async with AsyncAnthropic() as client:

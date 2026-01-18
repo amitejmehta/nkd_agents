@@ -3,7 +3,7 @@ import inspect
 import logging
 import os
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, get_args, get_origin
+from typing import Any, Awaitable, Callable, List, Literal, get_args, get_origin
 
 from .logging import GREEN, RED, RESET
 
@@ -21,21 +21,46 @@ def load_env(path: str = ".env") -> None:
         os.environ[k] = v
 
 
+def _handle_literal_annotation(
+    args: tuple, param_sig: str, type_map: dict
+) -> dict[str, Any]:
+    """Process Literal type annotation."""
+    if not args:
+        raise ValueError(f"Empty Literal in {param_sig}")
+    first_type = type(args[0])
+    if first_type not in type_map:
+        raise ValueError(f"Unsupported Literal type: {param_sig}")
+    if not all(type(v) == first_type for v in args):
+        raise ValueError(f"Literal cannot have mixed types: {param_sig}")
+    return {"type": type_map[first_type], "enum": list(args)}
+
+
+def _handle_list_annotation(
+    args: tuple, param_sig: str, type_map: dict
+) -> dict[str, Any]:
+    """Process list type annotation."""
+    if not args:
+        raise ValueError(f"Empty list in {param_sig}")
+    item_type = args[0]
+    if item_type not in type_map:
+        raise ValueError(f"Unsupported list item type: {param_sig}")
+    return {"type": "array", "items": {"type": type_map[item_type]}}
+
+
 def process_param_annotation(annotation: Any, param_sig: str) -> dict[str, Any]:
-    """Process a parameter annotation and return its schema."""
+    """Convert a parameter annotation to JSON schema.
+    Supports core types: str, int, float, bool as well as list[T] and Literal of core types.
+    """
     type_map = {str: "string", int: "integer", float: "number", bool: "boolean"}
 
-    if get_origin(annotation) is Literal:
-        literal_values = list(get_args(annotation))
-        if not literal_values:
-            raise ValueError(f"Empty Literal in {param_sig}")
-        first_type = type(literal_values[0])
-        if first_type not in type_map:
-            raise ValueError(f"Unsupported Literal type: {param_sig}")
-        if not all(type(v) == first_type for v in literal_values):
-            raise ValueError(f"Literal cannot have mixed types: {param_sig}")
+    origin, args = get_origin(annotation), get_args(annotation)
 
-        return {"type": type_map[first_type], "enum": literal_values}
+    if origin is Literal:
+        return _handle_literal_annotation(args, param_sig, type_map)
+    elif origin is list:
+        return _handle_list_annotation(args, param_sig, type_map)
+    elif annotation is list or annotation is List:
+        raise ValueError(f"List must have type parameter: {param_sig}")
     elif annotation is not inspect._empty and annotation not in type_map:
         raise ValueError(f"Unsupported type: {param_sig}")
     else:
@@ -46,7 +71,7 @@ def extract_function_params(
     func: Callable[..., Awaitable[Any]],
 ) -> tuple[dict[str, str], list[str]]:
     """Extract parameter schema and required list from a function signature.
-    Supports core types: str, int, float, bool and Literal of core types.
+    Supports core types: str, int, float, bool, list[T] of core types, and Literal of core types.
 
     Returns:
         tuple: (params_dict, required_list)

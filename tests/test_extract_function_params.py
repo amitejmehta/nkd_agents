@@ -207,19 +207,116 @@ class TestLiteralTypes:
         assert params["level"]["enum"] == [1, 2, 3]
 
 
-class TestInvalidTypeAnnotations:
-    """Test error handling for unsupported types."""
+class TestListTypes:
+    """Test list type handling with array schema."""
 
     @pytest.mark.asyncio
-    async def test_list_type_raises_error(self):
-        """List type is not supported."""
+    async def test_list_of_strings(self):
+        """list[str] creates array of strings."""
+
+        async def func(items: list[str]):
+            pass
+
+        params, _ = extract_function_params(func)
+        assert params["items"]["type"] == "array"
+        assert params["items"]["items"]["type"] == "string"
+
+    @pytest.mark.asyncio
+    async def test_list_of_integers(self):
+        """list[int] creates array of integers."""
+
+        async def func(numbers: list[int]):
+            pass
+
+        params, _ = extract_function_params(func)
+        assert params["numbers"]["type"] == "array"
+        assert params["numbers"]["items"]["type"] == "integer"
+
+    @pytest.mark.asyncio
+    async def test_list_of_floats(self):
+        """list[float] creates array of numbers."""
+
+        async def func(values: list[float]):
+            pass
+
+        params, _ = extract_function_params(func)
+        assert params["values"]["type"] == "array"
+        assert params["values"]["items"]["type"] == "number"
+
+    @pytest.mark.asyncio
+    async def test_list_of_booleans(self):
+        """list[bool] creates array of booleans."""
+
+        async def func(flags: list[bool]):
+            pass
+
+        params, _ = extract_function_params(func)
+        assert params["flags"]["type"] == "array"
+        assert params["flags"]["items"]["type"] == "boolean"
+
+    @pytest.mark.asyncio
+    async def test_list_with_default_is_optional(self):
+        """List with default value is optional."""
+
+        async def func(items: list[str] = None):
+            pass
+
+        params, required_list = extract_function_params(func)
+        assert "items" not in required_list
+        assert params["items"]["type"] == "array"
+
+    @pytest.mark.asyncio
+    async def test_multiple_list_parameters(self):
+        """Multiple list parameters are handled independently."""
+
+        async def func(names: list[str], counts: list[int]):
+            pass
+
+        params, _ = extract_function_params(func)
+        assert params["names"]["items"]["type"] == "string"
+        assert params["counts"]["items"]["type"] == "integer"
+
+    @pytest.mark.asyncio
+    async def test_untyped_list_raises_error(self):
+        """Bare list without type parameter raises error."""
 
         async def func(items: list):
             pass
 
         with pytest.raises(ValueError) as exc_info:
             extract_function_params(func)
-        assert "Unsupported type" in str(exc_info.value)
+        assert "must have type parameter" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_untyped_List_raises_error(self):
+        """Bare List (uppercase) without type parameter raises error."""
+        from typing import List
+
+        async def func(items: List):
+            pass
+
+        with pytest.raises(ValueError) as exc_info:
+            extract_function_params(func)
+        error_msg = str(exc_info.value).lower()
+        assert "list" in error_msg and ("empty" in error_msg or "must have type parameter" in error_msg)
+
+    @pytest.mark.asyncio
+    async def test_list_of_unsupported_type_raises_error(self):
+        """list[UnsupportedType] raises error."""
+
+        class Custom:
+            pass
+
+        async def func(items: list[Custom]):
+            pass
+
+        with pytest.raises(ValueError) as exc_info:
+            extract_function_params(func)
+        assert "Unsupported list item type" in str(exc_info.value)
+
+
+class TestInvalidTypeAnnotations:
+    """Test error handling for unsupported types."""
 
     @pytest.mark.asyncio
     async def test_dict_type_raises_error(self):
