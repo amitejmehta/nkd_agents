@@ -1,3 +1,4 @@
+# Core tools module providing file operations, bash execution, and agent capabilities
 import asyncio
 import base64
 import logging

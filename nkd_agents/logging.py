@@ -1,3 +1,4 @@
+# Centralized logging configuration with context-aware formatting and TTY color support
 import logging
 import sys
 from contextvars import ContextVar
