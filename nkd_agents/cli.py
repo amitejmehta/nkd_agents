@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import traceback
 from pathlib import Path
 from typing import Literal
 
@@ -43,24 +42,11 @@ if Path("CLAUDE.md").exists():  # fetches file from cwd at runtime
 
 
 async def llm_loop() -> None:
-    """For each msg in queue, run the agentic loop.
-    Runs forever due to nature of queue; supports cancellation of runs"""
+    """Run agentic loop for each msg in queue. A run is cancelled when the user interrupts."""
     global llm_task
-
     while True:
-        msgs.append(await q.get())  # q.get hangs until msg added to queue
-
-        coro = llm(client, msgs, tools, **model_settings)
-        llm_task = asyncio.create_task(coro)
-
-        try:
-            _ = await llm_task
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            logger.error(f"{RED}{traceback.format_exc()}{RESET}")
-        finally:
-            llm_task = None
+        msgs.append(await q.get())  # q.get hangs here forever until msg added to queue
+        llm_task = asyncio.create_task(llm(client, msgs, tools, **model_settings))
 
 
 async def user_input() -> None:
@@ -68,13 +54,13 @@ async def user_input() -> None:
     global starting_phrase
     kb = key_binding.KeyBindings()
 
-    @kb.add("c-k")
+    @kb.add("c-j")
     def clear_history(event: KeyPressEvent) -> None:
         logger.info(f"{DIM}Cleared {len(msgs)} msgs{RESET}")
         event.app.exit()
         msgs.clear()
 
-    @kb.add("c-j")
+    @kb.add("c-k")
     def switch_model(event: KeyPressEvent) -> None:
         global current_model_idx
         current_model_idx = (current_model_idx + 1) % len(models)
@@ -82,7 +68,7 @@ async def user_input() -> None:
         logger.info(f"{DIM}Switched to {GREEN}{model_settings["model"]}{RESET}")
         event.app.exit()
 
-    @kb.add("c-p")
+    @kb.add("c-l")
     def set_starting_phrase(event: KeyPressEvent) -> None:
         global starting_phrase
         text = event.app.current_buffer.text.strip()
@@ -125,13 +111,13 @@ async def main_async() -> None:
     logger.info(
         f"\n\n{DIM}nkd_agents\n\n"
         "'tab':     toggle thinking\n"
-        "'ctrl+j':  switch model\n"
-        "'ctrl+p':  set starting phrase\n"
         "'esc':     interrupt\n"
         "'esc esc': clear input\n"
-        "'ctrl+u':  clear line\n"
-        "'ctrl+k':  clear history\n"
-        f"'ctrl+d':  exit{RESET}\n",
+        "'ctrl+j':  clear history\n"
+        "'ctrl+k':  switch model\n"
+        "'ctrl+l':  change start phrase\n"
+        "'ctrl+u':  clear inline input\n"
+        f"'ctrl+c':  exit{RESET}\n",
     )
 
     try:
