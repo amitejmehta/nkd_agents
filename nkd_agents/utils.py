@@ -3,7 +3,7 @@ import inspect
 import logging
 import os
 from pathlib import Path
-from typing import Any, Awaitable, Callable, List, Literal, get_args, get_origin
+from typing import Any, Callable, List, Literal, get_args, get_origin
 
 from .logging import GREEN, RED, RESET
 
@@ -68,7 +68,7 @@ def process_param_annotation(annotation: Any, param_sig: str) -> dict[str, Any]:
 
 
 def extract_function_params(
-    func: Callable[..., Awaitable[Any]],
+    func: Callable[..., Any],
 ) -> tuple[dict[str, str], list[str]]:
     """Extract parameter schema and required list from a function signature.
     Supports core types: str, int, float, bool, list[T] of core types, and Literal of core types.
