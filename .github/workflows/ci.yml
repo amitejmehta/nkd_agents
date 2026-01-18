@@ -38,11 +38,11 @@ jobs:
     
     - name: Run ruff linting
       run: |
-        ruff check nkd_agents/
+        ruff check nkd_agents/ examples/ tests/
     
     - name: Run ruff formatting check
       run: |
-        ruff format --check nkd_agents/
+        ruff format --check nkd_agents/ examples/ tests/
     
     - name: Run pytest
       run: |
