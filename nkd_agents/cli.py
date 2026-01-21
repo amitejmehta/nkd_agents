@@ -20,17 +20,15 @@ load_env()
 client = AsyncAnthropic()
 
 
-async def switch_model(model: Literal["claude-haiku-4-5", "claude-sonnet-4-5"]) -> str:
-    """Switch to a different Claude model. Use Haiku for triage, Sonnet for non-trivial tasks."""
-    model_settings["model"] = model
-    logger.info(f"Switched to {GREEN}{model}{RESET}")
+async def switch_model(model: Literal["haiku", "sonnet"]) -> str:
+    """Switch between Haiku and Sonnet."""
+    logger.info(f"Switched to {GREEN}{f'claude-{model}-4-5'}{RESET}")
+    model_settings["model"] = f"claude-{model}-4-5"
     return f"Switched to {model}"
 
 
 # mutable state
-models = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
-current_model_idx = 1
-model_settings = {"model": "claude-sonnet-4-5", "max_tokens": 20000, "thinking": omit}
+model_settings = {"model": "claude-haiku-4-5", "max_tokens": 4096, "thinking": omit}
 tools = [read_file, edit_file, bash, subtask, load_image, switch_model]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
@@ -57,15 +55,15 @@ async def user_input() -> None:
     @kb.add("c-j")
     def clear_history(event: KeyPressEvent) -> None:
         logger.info(f"{DIM}Cleared {len(msgs)} msgs{RESET}")
-        event.app.exit()
         msgs.clear()
+        event.app.exit()
 
     @kb.add("c-k")
     def switch_model(event: KeyPressEvent) -> None:
-        global current_model_idx
-        current_model_idx = (current_model_idx + 1) % len(models)
-        model_settings["model"] = models[current_model_idx]
-        logger.info(f"{DIM}Switched to {GREEN}{model_settings["model"]}{RESET}")
+        model = model_settings["model"].split("-")[1]
+        new_model = "sonnet" if model == "haiku" else "haiku"
+        model_settings["model"] = f"claude-{new_model}-4-5"
+        logger.info(f"{DIM}Switched to {GREEN}{model_settings['model']}{RESET}")
         event.app.exit()
 
     @kb.add("c-l")
@@ -79,10 +77,10 @@ async def user_input() -> None:
 
     @kb.add("escape")
     def interrupt(event: KeyPressEvent) -> None:
-        logger.info(f"{RED}...Interrupted. What now?{RESET}")
-        event.app.exit()
         if llm_task and not llm_task.done():
+            logger.info(f"{RED}...Interrupted. What now?{RESET}")
             llm_task.cancel()
+        event.app.exit()
 
     @kb.add("escape", "escape")
     def clear_input(event: KeyPressEvent) -> None:
@@ -92,7 +90,7 @@ async def user_input() -> None:
     def toggle_thinking(event: KeyPressEvent) -> None:
         current = model_settings["thinking"] != omit
         model_settings["thinking"] = (
-            omit if current else {"type": "enabled", "budget_tokens": 2048}
+            omit if current else {"type": "enabled", "budget_tokens": 1024}
         )
         logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
         event.app.exit()
@@ -103,7 +101,12 @@ async def user_input() -> None:
     while True:
         text: str = await session.prompt_async("> ")
         if text and text.strip():
-            await q.put(user(f"{starting_phrase} {text.strip()}"))
+            current = model_settings["model"].split("-")[1]
+            if current == "haiku":
+                model_prefix = "Current model: haiku (trivial tasks, otherwise escalate to sonnet)."
+            else:
+                model_prefix = "Current model: sonnet (non-trivial tasks, otherwise back to haiku)."
+            await q.put(user(f"{starting_phrase} {model_prefix} {text.strip()}"))
 
 
 async def main_async() -> None:
