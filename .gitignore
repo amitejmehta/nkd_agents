@@ -171,7 +171,7 @@ cython_debug/
 #.idea/
 
 # Scratchpad Files
-scratchpad.*
+scratch.*
 
 # Code Editing Tools
 .cursor
