@@ -30,7 +30,7 @@ def _handle_literal_annotation(
     first_type = type(args[0])
     if first_type not in type_map:
         raise ValueError(f"Unsupported Literal type: {param_sig}")
-    if not all(type(v) == first_type for v in args):
+    if not all(type(v) is first_type for v in args):
         raise ValueError(f"Literal cannot have mixed types: {param_sig}")
     return {"type": type_map[first_type], "enum": list(args)}
 
