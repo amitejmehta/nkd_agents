@@ -7,7 +7,7 @@ name = "nkd_agents"
 version = "0.0.1"
 description = "nkd_agents is a package for building agents using only what you really need: an llm, a loop, and a few tools."
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "MIT"
 authors = [
     { name = "Amitej Mehta", email = "amitejmehta@berkeley.edu" }
 ]
