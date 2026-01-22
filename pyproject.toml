@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools", "setuptools_scm>=8"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "nkd_agents"
-dynamic = ["version"]
+version = "0.0.1"
 description = "nkd_agents is a package for building agents using only what you really need: an llm, a loop, and a few tools."
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -38,9 +38,6 @@ dev = [
 # Explicitly specify the packages to include
 [tool.setuptools]
 packages = ["nkd_agents"]
-
-[tool.setuptools_scm]
-
 
 # Default ruff configuration from: https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
 
