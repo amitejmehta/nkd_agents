@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from anthropic import AsyncAnthropic
 
 from nkd_agents.anthropic import llm, user
-from nkd_agents.ctx import ctx
 
 from ..utils import test
 from .model_settings import KWARGS
@@ -43,15 +42,15 @@ async def main():
     object (like a dataclass with frozen=False), tools can mutate it in-place and
     mutations remain visible after llm() returns.
 
-    Pattern: Set client and document context vars. Tools inherit contexts and can mutate.
+    Pattern: Set context var, call llm() with tools. Tools inherit and can mutate.
     """
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
     async with AsyncAnthropic() as client:
-        with ctx(document, doc):
-            prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-            await llm(client, [user(prompt)], tools=[edit_string], **KWARGS)
+        document.set(doc)
+        prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
+        await llm(client, [user(prompt)], tools=[edit_string], **KWARGS)
 
         logger.info(f"After: {doc.content}")
 
