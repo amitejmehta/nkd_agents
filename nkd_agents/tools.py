@@ -140,7 +140,9 @@ async def bash(command: str) -> str:
         return f"Error executing command: {str(e)}"
 
 
-async def subtask(prompt: str, task_label: str) -> str:
+async def subtask(
+    prompt: str, task_label: str, model: Literal["haiku", "sonnet"]
+) -> str:
     """Spawn a sub-agent to work on a specific task autonomously.
 
     The sub-agent will work on the given task with access to file read/edit and bash execution tools.
@@ -153,14 +155,17 @@ async def subtask(prompt: str, task_label: str) -> str:
             - What the expected output or outcome should be
             - Any constraints or requirements
         task_label: Short 3-5 word summary of the task for progress tracking
+        model: model to use for the subtask. use haiku for all simple tasks, otherwise sonnet.
     Returns:
         Response from the sub-agent
     """
     logging_ctx.set({"subtask": task_label})
 
     try:
-        tools = [read_file, edit_file, bash]
-        response = await llm(AsyncAnthropic(), [user(prompt)], tools, max_tokens=20000)
+        tools = [read_file, edit_file, bash, load_image]
+        kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
+        async with AsyncAnthropic() as client:
+            response = await llm(client, [user(prompt)], tools, **kwargs)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
 
