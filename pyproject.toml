@@ -6,10 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "nkd_agents"
 dynamic = ["version"]
 description = "nkd_agents is a package for building agents using only what you really need: an llm, a loop, and a few tools."
+readme = "README.md"
+license = {file = "LICENSE"}
 authors = [
     { name = "Amitej Mehta", email = "amitejmehta@berkeley.edu" }
 ]
-requires-python = ">=3.12, <3.13"
+requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.74.0,<=1.0.0",
     "openai>=2.11.0,<=3.0.0",
@@ -36,6 +38,8 @@ dev = [
 # Explicitly specify the packages to include
 [tool.setuptools]
 packages = ["nkd_agents"]
+
+[tool.setuptools_scm]
 
 
 # Default ruff configuration from: https://github.com/astral-sh/ruff?tab=readme-ov-file#configuration
@@ -75,8 +79,8 @@ exclude = [
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.12
-target-version = "py38"
+# Assume Python 3.11
+target-version = "py311"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
