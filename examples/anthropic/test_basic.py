@@ -43,7 +43,7 @@ async def main():
 
         # 2. With tools
         logger.info("2. Tool call")
-        response = await llm(client, [user(prompt)], tools=[get_weather], **KWARGS)
+        response = await llm(client, [user(prompt)], fns=[get_weather], **KWARGS)
         assert "sunny" in response.lower() and "72" in response.lower()
 
 

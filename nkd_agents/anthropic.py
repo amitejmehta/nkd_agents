@@ -75,7 +75,7 @@ def format_tool_results(
 async def llm(
     client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[BetaMessageParam],
-    tools: list[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
+    fns: list[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop with optional tools (run until no tool calls, then return text).
@@ -85,20 +85,18 @@ async def llm(
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     Uses prompt caching only when tools are provided (ephemeral cache on last message).
     """
-    tools = tools or []
-    tool_schemas = [tool_schema(fn) for fn in tools]
-    tool_dict = {fn.__name__: fn for fn in tools}
+    fns = fns or []
+    tool_dict = {fn.__name__: fn for fn in fns}
+    kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        if tools:
+        if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        async with client.beta.messages.stream(
-            messages=input, tools=tool_schemas, **kwargs
-        ) as s:
+        async with client.beta.messages.stream(messages=input, **kwargs) as s:
             resp = await s.get_final_message()
 
-        if tools:
+        if fns:
             del input[-1]["content"][-1]["cache_control"]  # type: ignore # TODO: fix this
 
         text, tool_calls = extract_text_and_tool_calls(resp)

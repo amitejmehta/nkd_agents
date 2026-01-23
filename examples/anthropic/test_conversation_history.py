@@ -41,7 +41,7 @@ async def main():
         _ = await llm(client, msgs, **KWARGS)
 
         msgs.append(user("What's the weather?"))
-        response = await llm(client, msgs, tools=[get_weather], **KWARGS)
+        response = await llm(client, msgs, fns=[get_weather], **KWARGS)
         assert "sunny" in response.lower() and "72" in response.lower()
 
 

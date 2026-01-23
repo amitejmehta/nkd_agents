@@ -47,6 +47,10 @@ def extract_text_and_tool_calls(
     text, tool_calls = "", []
 
     for item in response.output:
+        if item.type == "reasoning":
+            for content in item.summary:
+                if item.type == "text":
+                    logger.info(f"Reasoning (summary): {content.text}")
         if item.type == "message":
             for content in item.content:
                 if content.type == "output_text":
@@ -75,7 +79,7 @@ def format_tool_results(
 async def llm(
     client: AsyncOpenAI,
     input: list[ResponseInputItemParam],
-    tools: list[Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]]
+    fns: list[Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]]
     | None = None,
     **kwargs: Any,
 ) -> str:
@@ -83,12 +87,12 @@ async def llm(
     Tools must be async functions, handle their own errors, and return a string,
     When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
-    tools = tools or []
-    tool_schemas = [tool_schema(fn) for fn in tools]
-    tool_dict = {fn.__name__: fn for fn in tools}
+    fns = fns or []
+    tool_dict = {fn.__name__: fn for fn in fns}
+    kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        resp = await client.responses.parse(input=input, tools=tool_schemas, **kwargs)
+        resp = await client.responses.parse(input=input, **kwargs)
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this
