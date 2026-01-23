@@ -21,7 +21,7 @@ client = AsyncAnthropic()
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
-model_settings = {"model": MODELS[model_idx], "max_tokens": 4096, "thinking": omit}
+model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
 tools = [read_file, edit_file, bash, subtask, load_image]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
@@ -52,8 +52,9 @@ async def user_input() -> None:
 
     @kb.add("c-k")
     def clear_history(event: KeyPressEvent) -> None:
+        length = len(msgs)
         msgs.clear()
-        logger.info(f"{DIM}Cleared {len(msgs)} msgs{RESET}")
+        logger.info(f"{DIM}Cleared {length} msgs{RESET}")
 
     @kb.add("escape")
     def interrupt(event: KeyPressEvent) -> None:
@@ -69,7 +70,7 @@ async def user_input() -> None:
     def toggle_thinking(event: KeyPressEvent) -> None:
         current = model_settings["thinking"] != omit
         model_settings["thinking"] = (
-            omit if current else {"type": "enabled", "budget_tokens": 1024}
+            omit if current else {"type": "enabled", "budget_tokens": 2048}
         )
         logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
