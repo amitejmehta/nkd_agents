@@ -22,7 +22,7 @@ MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
 model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
-tools = [read_file, edit_file, bash, subtask, load_image]
+fns = [read_file, edit_file, bash, subtask, load_image]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
@@ -36,7 +36,7 @@ async def llm_loop() -> None:
     global llm_task
     while True:
         msgs.append(await q.get())  # q.get hangs here forever until msg added to queue
-        llm_task = asyncio.create_task(llm(client, msgs, tools, **model_settings))
+        llm_task = asyncio.create_task(llm(client, msgs, fns, **model_settings))
 
 
 async def user_input() -> None:
@@ -74,6 +74,16 @@ async def user_input() -> None:
         )
         logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
+    @kb.add("s-tab")
+    def toggle_plan_mode(event: KeyPressEvent) -> None:
+        global fns
+        plan_mode = edit_file not in fns and bash not in fns
+        if plan_mode:
+            fns = [read_file, edit_file, bash, subtask, load_image]
+        else:
+            fns = [read_file, subtask, load_image]
+        logger.info(f"{DIM}Plan mode: {'✓' if not plan_mode else '✗'}{RESET}")
+
     style = styles.Style.from_dict({"": "ansibrightblack"})
     session = PromptSession(key_bindings=kb, style=style)
 
@@ -87,13 +97,14 @@ async def main_async() -> None:
     """Launch user input and LLM loops in parallel."""
     logger.info(
         f"\n\n{DIM}nkd_agents\n\n"
-        "'tab':     toggle thinking\n"
-        "'esc':     interrupt\n"
-        "'esc esc': clear input\n"
-        "'ctrl+j':  next model\n"
-        "'ctrl+k':  clear history\n"
-        "'ctrl+u':  clear inline input\n"
-        f"'ctrl+c':  exit{RESET}\n",
+        "'tab':       toggle thinking\n"
+        "'shift+tab': toggle plan mode\n"
+        "'esc':       interrupt\n"
+        "'esc esc':   clear input\n"
+        "'ctrl+j':    next model\n"
+        "'ctrl+k':    clear history\n"
+        "'ctrl+u':    clear inline input\n"
+        f"'ctrl+c':    exit{RESET}\n",
     )
 
     try:
