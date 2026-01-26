@@ -81,7 +81,7 @@ async def user_input() -> None:
         if plan_mode:
             fns = [read_file, edit_file, bash, subtask, load_image]
         else:
-            fns = [read_file, subtask, load_image]
+            fns = [read_file, load_image]
         logger.info(f"{DIM}Plan mode: {'✓' if not plan_mode else '✗'}{RESET}")
 
     style = styles.Style.from_dict({"": "ansibrightblack"})
