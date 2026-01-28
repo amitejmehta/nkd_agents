@@ -112,7 +112,7 @@ async def llm(
         text, tool_calls = extract_text_and_tool_calls(resp)
         input.append({"role": "assistant", "content": resp.content})
 
-        if not tool_calls or not fns:
+        if not tool_calls:
             return text
 
         try:
