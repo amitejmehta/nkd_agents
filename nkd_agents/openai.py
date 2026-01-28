@@ -62,6 +62,20 @@ def extract_text_and_tool_calls(
     return text, tool_calls
 
 
+async def tool(
+    tool_dict: dict[
+        str, Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
+    ],
+    tool_call: ParsedResponseFunctionToolCall,
+) -> str | ResponseFunctionCallOutputItemListParam:
+    """Call a tool function and return the result."""
+    try:
+        return await tool_dict[tool_call.name](**json.loads(tool_call.arguments))
+    except Exception as e:
+        logger.info(f"Error calling tool '{tool_call.name}': {str(e)}")
+        return f"Error calling tool '{tool_call.name}': {str(e)}"
+
+
 def format_tool_results(
     tool_calls: list[ParsedResponseFunctionToolCall],
     results: list[str | ResponseFunctionCallOutputItemListParam],
@@ -83,9 +97,9 @@ async def llm(
     | None = None,
     **kwargs: Any,
 ) -> str:
-    """Run GPT models in agentic loop (run until no tool calls, then return text).
-    Tools must be async functions, handle their own errors, and return a string,
-    When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
+    """Run GPT in agentic loop (run until no tool calls, then return text).
+    - Tools must be async functions that return a string OR list of OpenAI content blocks.
+    - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
     fns = fns or []
     tool_dict = {fn.__name__: fn for fn in fns}
@@ -97,12 +111,12 @@ async def llm(
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this
 
-        if not tool_calls:
+        if not tool_calls or not fns:
             return text
 
         try:
-            tasks = [tool_dict[c.name](**json.loads(c.arguments)) for c in tool_calls]
-            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))
+            results = await asyncio.gather(*[tool(tool_dict, c) for c in tool_calls])
+            input += format_tool_results(tool_calls, results)
         except asyncio.CancelledError:
             input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))
             raise

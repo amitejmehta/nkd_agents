@@ -56,6 +56,18 @@ def extract_text_and_tool_calls(
     return text, tool_calls
 
 
+async def tool(
+    tool_dict: dict[str, Callable[..., Awaitable[Any]]],
+    tool_call: BetaToolUseBlock,
+) -> Any:
+    """Call a tool function with the given tool call."""
+    try:
+        return await tool_dict[tool_call.name](**tool_call.input)
+    except Exception as e:
+        logger.info(f"Error calling tool '{tool_call.name}': {str(e)}")
+        return f"Error calling tool '{tool_call.name}': {str(e)}"
+
+
 def format_tool_results(
     tool_calls: list[BetaToolUseBlock],
     results: list[str | Iterable[Content]],
@@ -78,12 +90,10 @@ async def llm(
     fns: list[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
     **kwargs: Any,
 ) -> str:
-    """Run Claude in agentic loop with optional tools (run until no tool calls, then return text).
-
-    Tools must be async functions, handle their own errors, and return a string
-    or iterable of Anthropic content blocks.
-    When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
-    Uses prompt caching only when tools are provided (ephemeral cache on last message).
+    """Run Claude in agentic loop (run until no tool calls, then return text).
+    - Tools must be async functions that return a string OR list of Anthropic content blocks.
+    - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
+    - Uses anthropic ephemeral (5min) prompt caching by always setting breakpoint at last message.
     """
     fns = fns or []
     tool_dict = {fn.__name__: fn for fn in fns}
@@ -102,12 +112,12 @@ async def llm(
         text, tool_calls = extract_text_and_tool_calls(resp)
         input.append({"role": "assistant", "content": resp.content})
 
-        if not tool_calls:
+        if not tool_calls or not fns:
             return text
 
         try:
-            tasks = [tool_dict[c.name](**c.input) for c in tool_calls]
-            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))
+            results = await asyncio.gather(*[tool(tool_dict, c) for c in tool_calls])
+            input += format_tool_results(tool_calls, results)
         except asyncio.CancelledError:
             input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))
             raise
