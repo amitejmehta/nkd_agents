@@ -2,10 +2,12 @@ import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+from anthropic import AsyncAnthropic
+
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .config import KWARGS, client
+from .config import KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +44,15 @@ async def main():
 
     Pattern: Set context var, call llm() with tools. Reuse cached client.
     """
+    from nkd_agents import anthropic
+
+    anthropic.client = AsyncAnthropic()
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
     document.set(doc)
     prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-    await llm(client(), [user(prompt)], fns=[edit_string], **KWARGS)
+    await llm([user(prompt)], fns=[edit_string], **KWARGS)
 
     logger.info(f"After: {doc.content}")
 

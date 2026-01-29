@@ -4,6 +4,7 @@ from typing import Any, Awaitable, Callable, Iterable, Sequence
 
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex, transform_schema
 from anthropic.types.beta import (
+    BetaJSONOutputFormatParam,
     BetaMessage,
     BetaMessageParam,
     BetaTextBlockParam,
@@ -18,10 +19,27 @@ from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
 
+client: AsyncAnthropic | AsyncAnthropicVertex | None = None
+
+
+def _get_client() -> AsyncAnthropic | AsyncAnthropicVertex:
+    """Return the client instance. Raises if not set."""
+    if client is None:
+        raise RuntimeError(
+            "anthropic.client must be set before calling llm(). "
+            "Example: anthropic.client = AsyncAnthropic()"
+        )
+    return client
+
 
 def user(content: str) -> BetaMessageParam:
     "Take a string and return a full Anthropicuser message."
     return {"role": "user", "content": [{"type": "text", "text": content}]}
+
+
+def output_format(model: type[BaseModel]) -> BetaJSONOutputFormatParam:
+    schema = transform_schema(model.model_json_schema())
+    return {"type": "json_schema", "schema": schema}
 
 
 def tool_schema(
@@ -80,20 +98,18 @@ def format_tool_results(
     return [{"role": "user", "content": content}]
 
 
-def output_format(model: type[BaseModel]) -> dict[str, Any]:
-    return {
-        "type": "json_schema",
-        "schema": transform_schema(model.model_json_schema()),
-    }
-
-
 async def llm(
-    client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[BetaMessageParam],
     fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop (run until no tool calls, then return text).
+
+    Args:
+        input: List of messages forming the conversation history
+        fns: Optional list of async tool functions
+        **kwargs: API parameters (model, max_tokens, system, temperature, etc.)
+
     - Tools must be async functions that return a string OR list of Anthropic content blocks.
     - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
@@ -107,7 +123,7 @@ async def llm(
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        resp: BetaMessage = await client.beta.messages.create(
+        resp: BetaMessage = await _get_client().beta.messages.create(
             messages=input, betas=["structured-outputs-2025-11-13"], **kwargs
         )
 

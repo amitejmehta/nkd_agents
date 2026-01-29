@@ -17,6 +17,18 @@ from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
 
+client: AsyncOpenAI | None = None
+
+
+def _get_client() -> AsyncOpenAI:
+    """Return the client instance. Raises if not set."""
+    if client is None:
+        raise RuntimeError(
+            "openai.client must be set before calling llm(). "
+            "Example: openai.client = AsyncOpenAI()"
+        )
+    return client
+
 
 def user(content: str) -> ResponseInputItemParam:
     "Take a string and return a full OpenAI user message."
@@ -81,7 +93,6 @@ def format_tool_results(
 
 
 async def llm(
-    client: AsyncOpenAI,
     input: list[ResponseInputItemParam],
     fns: Sequence[
         Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
@@ -90,6 +101,12 @@ async def llm(
     **kwargs: Any,
 ) -> str:
     """Run GPT in agentic loop (run until no tool calls, then return text).
+
+    Args:
+        input: List of messages forming the conversation history
+        fns: Optional list of async tool functions
+        **kwargs: API parameters (model, temperature, reasoning, etc.)
+
     - Tools must be async functions that return a string OR list of OpenAI content blocks.
     - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
@@ -99,7 +116,7 @@ async def llm(
     kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        resp = await client.responses.parse(input=input, **kwargs)
+        resp = await _get_client().responses.parse(input=input, **kwargs)
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this

@@ -1,11 +1,12 @@
 import logging
 
+from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaMessageParam
 
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .config import KWARGS, client
+from .config import KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,15 @@ async def main():
 
     Pattern: Reuse cached client, pass tools (empty list when no tools).
     """
+    from nkd_agents import anthropic
+
+    anthropic.client = AsyncAnthropic()
     logger.info("1. Conversation history")
     msgs: list[BetaMessageParam] = [user("I live in Paris")]
-    _ = await llm(client(), msgs, **KWARGS)
+    _ = await llm(msgs, **KWARGS)
 
     msgs.append(user("What's the weather?"))
-    response = await llm(client(), msgs, fns=[get_weather], **KWARGS)
+    response = await llm(msgs, fns=[get_weather], **KWARGS)
     assert "sunny" in response.lower() and "72" in response.lower()
 
 

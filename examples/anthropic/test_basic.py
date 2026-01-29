@@ -1,9 +1,11 @@
 import logging
 
+from anthropic import AsyncAnthropic
+
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .config import KWARGS, client
+from .config import KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +33,19 @@ async def main():
     1. Simple string prompt with no tools
     2. Basic tool call
 
-    Key pattern: Reuse cached client, always pass tools list (required even if empty).
+    Key pattern: Client is managed automatically via singleton.
     """
+    from nkd_agents import anthropic
+
+    anthropic.client = AsyncAnthropic()
     prompt = "What's the weather in Paris?"
-    # 1. No tools - pass empty list
+    # 1. No tools
     logger.info("1. Basic usage (no tools)")
-    _ = await llm(client(), [user(prompt)], **KWARGS)
+    _ = await llm([user(prompt)], **KWARGS)
 
     # 2. With tools
     logger.info("2. Tool call")
-    response = await llm(client(), [user(prompt)], fns=[get_weather], **KWARGS)
+    response = await llm([user(prompt)], fns=[get_weather], **KWARGS)
     assert "sunny" in response.lower() and "72" in response.lower()
 
 

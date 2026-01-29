@@ -5,7 +5,6 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
-from anthropic import AsyncAnthropic
 from anthropic.types.beta import BetaBase64ImageSourceParam, BetaBase64PDFSourceParam
 from anthropic.types.beta.beta_tool_result_block_param import Content
 
@@ -187,7 +186,7 @@ async def subtask(
         logging_ctx.set({"subtask": task_label})
         tools = [read_file, edit_file, bash]
         kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
-        response = await llm(AsyncAnthropic(), [user(prompt)], tools, **kwargs)
+        response = await llm([user(prompt)], fns=tools, **kwargs)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
     except Exception as e:

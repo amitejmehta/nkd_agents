@@ -1,10 +1,12 @@
 import logging
 from typing import Literal
 
+from anthropic import AsyncAnthropic
+
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .config import KWARGS, client
+from .config import KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +42,13 @@ async def main():
 
     Pattern: Reuse cached client, pass tools list (required).
     """
+    from nkd_agents import anthropic
+
+    anthropic.client = AsyncAnthropic()
     prompt = "I want to visit Tokyo or Osaka from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     tools = [search_flights, search_hotels, calculate_total_cost]
 
-    response = await llm(client(), [user(prompt)], fns=tools, **KWARGS)
+    response = await llm([user(prompt)], fns=tools, **KWARGS)
     assert "450" in response or "$450" in response
     assert "60" in response or "$60" in response
     assert "690" in response or "$690" in response

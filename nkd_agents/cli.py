@@ -7,17 +7,16 @@ from anthropic.types.beta import BetaMessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
+from . import anthropic
 from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
 from .tools import bash, edit_file, read_file, subtask
 from .utils import load_env
 
 configure_logging()
-logger = logging.getLogger(__name__)
-
 load_env()
-client = AsyncAnthropic()
-
+logger = logging.getLogger(__name__)
+anthropic.client = AsyncAnthropic()
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
@@ -36,7 +35,7 @@ async def llm_loop() -> None:
     global llm_task
     while True:
         msgs.append(await q.get())  # q.get hangs here forever until msg added to queue
-        llm_task = asyncio.create_task(llm(client, msgs, fns, **model_settings))
+        llm_task = asyncio.create_task(llm(msgs, fns=fns, **model_settings))
 
 
 async def user_input() -> None:
@@ -115,7 +114,8 @@ async def main_async() -> None:
     except (KeyboardInterrupt, EOFError):
         logger.info(f"{DIM}Exiting...{RESET}")
     finally:
-        await client.close()
+        assert anthropic.client
+        await anthropic.client.close()
 
 
 def main() -> None:
