@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Iterable
+from typing import Any, Awaitable, Callable, Iterable, Sequence
 
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types.beta import (
@@ -87,7 +87,7 @@ def format_tool_results(
 async def llm(
     client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[BetaMessageParam],
-    fns: list[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
+    fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop (run until no tool calls, then return text).
