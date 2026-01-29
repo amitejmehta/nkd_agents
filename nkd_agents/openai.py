@@ -28,14 +28,18 @@ def tool_schema(func: Callable[..., Awaitable[Any]]) -> FunctionToolParam:
     if not func.__doc__:
         raise ValueError(f"Function {func.__name__} must have a docstring")
 
-    parameters, required = extract_function_params(func)
-    input_schema = {"type": "object", "properties": parameters, "required": required}
+    parameters, required_parameters = extract_function_params(func)
 
     return FunctionToolParam(
         type="function",
         name=func.__name__,
         description=func.__doc__,
-        parameters=input_schema | {"additionalProperties": False},
+        parameters={
+            "type": "object",
+            "properties": parameters,
+            "required": required_parameters,
+            "additionalProperties": False,
+        },
         strict=True,
     )
 
@@ -60,20 +64,6 @@ def extract_text_and_tool_calls(
             tool_calls.append(item)
 
     return text, tool_calls
-
-
-async def tool(
-    tool_dict: dict[
-        str, Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
-    ],
-    tool_call: ParsedResponseFunctionToolCall,
-) -> str | ResponseFunctionCallOutputItemListParam:
-    """Call a tool function and return the result."""
-    try:
-        return await tool_dict[tool_call.name](**json.loads(tool_call.arguments))
-    except Exception as e:
-        logger.info(f"Error calling tool '{tool_call.name}': {str(e)}")
-        return f"Error calling tool '{tool_call.name}': {str(e)}"
 
 
 def format_tool_results(
@@ -101,6 +91,7 @@ async def llm(
 ) -> str:
     """Run GPT in agentic loop (run until no tool calls, then return text).
     - Tools must be async functions that return a string OR list of OpenAI content blocks.
+    - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
     fns = fns or []
@@ -117,8 +108,8 @@ async def llm(
             return text
 
         try:
-            results = await asyncio.gather(*[tool(tool_dict, c) for c in tool_calls])
-            input += format_tool_results(tool_calls, results)
+            tasks = [tool_dict[c.name](**json.loads(c.arguments)) for c in tool_calls]
+            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))
         except asyncio.CancelledError:
             input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))
             raise

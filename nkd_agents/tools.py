@@ -56,30 +56,33 @@ async def read_file(
 ) -> str | list[Content]:
     """Read and return the contents of a file at the given path. Only works with files, not directories.
     Supports image (jpg, jpeg, png, gif, webp), PDF, and all text files."""
-    resolved_path = resolve_path(path)
-    if isinstance(resolved_path, str):  # Error message
-        return resolved_path
+    try:
+        resolved_path = resolve_path(path)
+        if isinstance(resolved_path, str):  # Error message
+            return resolved_path
 
-    logger.info(f"\nReading: {GREEN}{resolved_path}{RESET}\n")
-    bytes = resolved_path.read_bytes()
+        logger.info(f"\nReading: {GREEN}{resolved_path}{RESET}\n")
+        bytes = resolved_path.read_bytes()
 
-    if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
-        source = BetaBase64ImageSourceParam(
-            type="base64",
-            media_type=media_type,
-            data=base64.standard_b64encode(bytes).decode("utf-8"),
-        )
-        return [{"type": "image", "source": source}]
-    elif media_type == "application/pdf":
-        source = BetaBase64PDFSourceParam(
-            type="base64",
-            media_type="application/pdf",
-            data=base64.standard_b64encode(bytes).decode("utf-8"),
-        )
-        return [{"type": "document", "source": source}]
-    else:
-        text = bytes.decode("utf-8", errors="ignore").strip()
-        return [{"type": "text", "text": text}]
+        if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+            source = BetaBase64ImageSourceParam(
+                type="base64",
+                media_type=media_type,
+                data=base64.standard_b64encode(bytes).decode("utf-8"),
+            )
+            return [{"type": "image", "source": source}]
+        elif media_type == "application/pdf":
+            source = BetaBase64PDFSourceParam(
+                type="base64",
+                media_type="application/pdf",
+                data=base64.standard_b64encode(bytes).decode("utf-8"),
+            )
+            return [{"type": "document", "source": source}]
+        else:
+            text = bytes.decode("utf-8", errors="ignore").strip()
+            return [{"type": "text", "text": text}]
+    except Exception as e:
+        return f"Error reading file '{path}': {str(e)}"
 
 
 async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> str:
@@ -102,27 +105,30 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
     - "Error: File '{path}' not found"
     - "Error editing file '{path}': {error description}" (for other failures)
     """
-    if old_str == new_str:
-        return "Error: old_str and new_str must be different"
+    try:
+        if old_str == new_str:
+            return "Error: old_str and new_str must be different"
 
-    resolved_path = resolve_path(path)
-    if isinstance(resolved_path, str):  # Error message
-        return resolved_path
+        resolved_path = resolve_path(path)
+        if isinstance(resolved_path, str):  # Error message
+            return resolved_path
 
-    if resolved_path.exists():
-        content = resolved_path.read_text(encoding="utf-8")
-        if old_str != "" and old_str not in content:
-            return "Error: old_str not found in file content"
-        edited_content = content.replace(old_str, new_str, count)
-    else:
-        if old_str != "":
-            return f"Error: File '{path}' not found"
-        content, edited_content = "", new_str
+        if resolved_path.exists():
+            content = resolved_path.read_text(encoding="utf-8")
+            if old_str != "" and old_str not in content:
+                return "Error: old_str not found in file content"
+            edited_content = content.replace(old_str, new_str, count)
+        else:
+            if old_str != "":
+                return f"Error: File '{path}' not found"
+            content, edited_content = "", new_str
 
-    display_diff(content, edited_content, str(resolved_path))
-    resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    resolved_path.write_text(edited_content, encoding="utf-8")
-    return f"Success: Updated {resolved_path}"
+        display_diff(content, edited_content, str(resolved_path))
+        resolved_path.parent.mkdir(parents=True, exist_ok=True)
+        resolved_path.write_text(edited_content, encoding="utf-8")
+        return f"Success: Updated {resolved_path}"
+    except Exception as e:
+        return f"Error editing file '{path}': {str(e)}"
 
 
 async def bash(command: str) -> str:
@@ -154,6 +160,8 @@ async def bash(command: str) -> str:
             process.kill()
             await process.wait()
         raise
+    except Exception as e:
+        return f"Error executing command: {str(e)}"
 
 
 async def subtask(
@@ -175,9 +183,12 @@ async def subtask(
     Returns:
         Response from the sub-agent
     """
-    logging_ctx.set({"subtask": task_label})
-    tools = [read_file, edit_file, bash]
-    kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
-    response = await llm(AsyncAnthropic(), [user(prompt)], tools, **kwargs)
-    logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
-    return f"subtask '{task_label}' complete: {response}"
+    try:
+        logging_ctx.set({"subtask": task_label})
+        tools = [read_file, edit_file, bash]
+        kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
+        response = await llm(AsyncAnthropic(), [user(prompt)], tools, **kwargs)
+        logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
+        return f"subtask '{task_label}' complete: {response}"
+    except Exception as e:
+        return f"Error executing subtask '{task_label}': {str(e)}"

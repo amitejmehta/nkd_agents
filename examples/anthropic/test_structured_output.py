@@ -2,7 +2,7 @@ import logging
 
 from pydantic import BaseModel
 
-from nkd_agents.anthropic import llm, user
+from nkd_agents.anthropic import llm, output_format, user
 
 from ..utils import test
 from .config import KWARGS, client
@@ -43,8 +43,7 @@ async def main():
     Pattern: Reuse cached client, pass tools (empty list when no tools).
     """
     prompt = "What's the weather in Paris?"
-    kwargs = {"betas": ["structured-outputs-2025-11-13"], "output_format": Weather}
-    kwargs = {**KWARGS, **kwargs}
+    kwargs = {**KWARGS, "output_format": output_format(Weather)}
 
     # 1. Structured output
     logger.info("1. Structured output")

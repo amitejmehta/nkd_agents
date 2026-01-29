@@ -205,16 +205,18 @@ class TestReadFileEdgeCases:
 
     @pytest.mark.asyncio
     async def test_read_file_nonexistent(self):
-        """read_file raises FileNotFoundError for nonexistent file."""
-        with pytest.raises(FileNotFoundError):
-            await read_file("/nonexistent/path/file.txt")
+        """read_file returns error for nonexistent file."""
+        result = await read_file("/nonexistent/path/file.txt")
+        assert "Error reading file" in result
+        assert "No such file or directory" in result or "FileNotFoundError" in result
 
     @pytest.mark.asyncio
     async def test_read_file_directory(self):
-        """read_file raises IsADirectoryError when given directory."""
+        """read_file returns error when given directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with pytest.raises(IsADirectoryError):
-                await read_file(tmpdir)
+            result = await read_file(tmpdir)
+            assert "Error reading file" in result
+            assert "Is a directory" in result or "IsADirectoryError" in result
 
     @pytest.mark.asyncio
     async def test_read_file_image_png(self):

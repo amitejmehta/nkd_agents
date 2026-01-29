@@ -2,8 +2,9 @@ import asyncio
 import logging
 from typing import Any, Awaitable, Callable, Iterable, Sequence
 
-from anthropic import AsyncAnthropic, AsyncAnthropicVertex
+from anthropic import AsyncAnthropic, AsyncAnthropicVertex, transform_schema
 from anthropic.types.beta import (
+    BetaMessage,
     BetaMessageParam,
     BetaTextBlockParam,
     BetaToolParam,
@@ -11,7 +12,6 @@ from anthropic.types.beta import (
     BetaToolUseBlock,
 )
 from anthropic.types.beta.beta_tool_result_block_param import Content
-from anthropic.types.beta.parsed_beta_message import ParsedBetaMessage
 from pydantic import BaseModel
 
 from .utils import extract_function_params
@@ -31,15 +31,23 @@ def tool_schema(
     if not func.__doc__:
         raise ValueError(f"Function {func.__name__} must have a docstring")
 
-    params, required = extract_function_params(func)
-    input_schema = {"type": "object", "properties": params, "required": required}
+    parameters, required_parameters = extract_function_params(func)
+
     return BetaToolParam(
-        name=func.__name__, description=func.__doc__, input_schema=input_schema
+        name=func.__name__,
+        description=func.__doc__,
+        input_schema={
+            "type": "object",
+            "properties": parameters,
+            "required": required_parameters,
+            "additionalProperties": False,
+        },
+        strict=True,
     )
 
 
 def extract_text_and_tool_calls(
-    response: ParsedBetaMessage[BaseModel],
+    response: BetaMessage,
 ) -> tuple[str, list[BetaToolUseBlock]]:
     """Extract text and tool calls from an Anthropic message."""
     text, tool_calls = "", []
@@ -54,18 +62,6 @@ def extract_text_and_tool_calls(
             tool_calls.append(block)
 
     return text, tool_calls
-
-
-async def tool(
-    tool_dict: dict[str, Callable[..., Awaitable[Any]]],
-    tool_call: BetaToolUseBlock,
-) -> Any:
-    """Call a tool function with the given tool call."""
-    try:
-        return await tool_dict[tool_call.name](**tool_call.input)
-    except Exception as e:
-        logger.info(f"Error calling tool '{tool_call.name}': {str(e)}")
-        return f"Error calling tool '{tool_call.name}': {str(e)}"
 
 
 def format_tool_results(
@@ -84,6 +80,13 @@ def format_tool_results(
     return [{"role": "user", "content": content}]
 
 
+def output_format(model: type[BaseModel]) -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "schema": transform_schema(model.model_json_schema()),
+    }
+
+
 async def llm(
     client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[BetaMessageParam],
@@ -92,6 +95,7 @@ async def llm(
 ) -> str:
     """Run Claude in agentic loop (run until no tool calls, then return text).
     - Tools must be async functions that return a string OR list of Anthropic content blocks.
+    - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     - Uses anthropic ephemeral (5min) prompt caching by always setting breakpoint at last message.
     """
@@ -103,8 +107,9 @@ async def llm(
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        async with client.beta.messages.stream(messages=input, **kwargs) as s:
-            resp = await s.get_final_message()
+        resp: BetaMessage = await client.beta.messages.create(
+            messages=input, betas=["structured-outputs-2025-11-13"], **kwargs
+        )
 
         if fns:
             del input[-1]["content"][-1]["cache_control"]  # type: ignore # TODO: fix this
@@ -116,8 +121,8 @@ async def llm(
             return text
 
         try:
-            results = await asyncio.gather(*[tool(tool_dict, c) for c in tool_calls])
-            input += format_tool_results(tool_calls, results)
+            tasks = [tool_dict[c.name](**c.input) for c in tool_calls]
+            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))
         except asyncio.CancelledError:
             input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))
             raise
