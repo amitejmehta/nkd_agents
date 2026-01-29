@@ -1,12 +1,10 @@
 import logging
 from typing import Literal
 
-from anthropic import AsyncAnthropic
-
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .model_settings import KWARGS
+from .config import KWARGS, client
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +38,15 @@ async def main():
     The framework's agentic loop handles the complexity: tool A's output feeds into
     the decision to call tool B, then synthesize into a final answer.
 
-    Pattern: Set client once, pass tools list (required).
+    Pattern: Reuse cached client, pass tools list (required).
     """
     prompt = "I want to visit Tokyo or Osaka from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     tools = [search_flights, search_hotels, calculate_total_cost]
 
-    async with AsyncAnthropic() as client:
-        response = await llm(client, [user(prompt)], fns=tools, **KWARGS)
-        assert "450" in response or "$450" in response
-        assert "60" in response or "$60" in response
-        assert "690" in response or "$690" in response
+    response = await llm(client(), [user(prompt)], fns=tools, **KWARGS)
+    assert "450" in response or "$450" in response
+    assert "60" in response or "$60" in response
+    assert "690" in response or "$690" in response
 
 
 if __name__ == "__main__":
