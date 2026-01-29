@@ -2,12 +2,10 @@ import logging
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from anthropic import AsyncAnthropic
-
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .model_settings import KWARGS
+from .config import KWARGS, client
 
 logger = logging.getLogger(__name__)
 
@@ -42,20 +40,19 @@ async def main():
     object (like a dataclass with frozen=False), tools can mutate it in-place and
     mutations remain visible after llm() returns.
 
-    Pattern: Set context var, call llm() with tools. Tools inherit and can mutate.
+    Pattern: Set context var, call llm() with tools. Reuse cached client.
     """
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
-    async with AsyncAnthropic() as client:
-        document.set(doc)
-        prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-        await llm(client, [user(prompt)], fns=[edit_string], **KWARGS)
+    document.set(doc)
+    prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
+    await llm(client(), [user(prompt)], fns=[edit_string], **KWARGS)
 
-        logger.info(f"After: {doc.content}")
+    logger.info(f"After: {doc.content}")
 
-        expected = "The quick brown cat jumps over the lazy dog"
-        assert doc.content == expected
+    expected = "The quick brown cat jumps over the lazy dog"
+    assert doc.content == expected
 
 
 if __name__ == "__main__":

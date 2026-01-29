@@ -1,12 +1,10 @@
 import logging
 from contextvars import ContextVar
 
-from anthropic import AsyncAnthropic
-
 from nkd_agents.anthropic import llm, user
 
 from ..utils import test
-from .model_settings import KWARGS
+from .config import KWARGS, client
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +29,16 @@ async def main():
     Key lesson: Context variables are inherited by tools run via asyncio.gather().
     Set the context var before calling llm(), tools automatically see the correct value.
 
-    Pattern: Set context var, call llm() with tools. No wrapper needed.
+    Pattern: Set context var, call llm() with tools. Reuse cached client.
     """
     prompt = "Greet Alice"
-    async with AsyncAnthropic() as client:
-        current_language.set("english")
-        response_en = await llm(client, [user(prompt)], fns=[greet], **KWARGS)
-        assert "Hello" in response_en or "hello" in response_en.lower()
+    current_language.set("english")
+    response_en = await llm(client(), [user(prompt)], fns=[greet], **KWARGS)
+    assert "Hello" in response_en or "hello" in response_en.lower()
 
-        current_language.set("spanish")
-        response_es = await llm(client, [user(prompt)], fns=[greet], **KWARGS)
-        assert "Hola" in response_es or "hola" in response_es.lower()
+    current_language.set("spanish")
+    response_es = await llm(client(), [user(prompt)], fns=[greet], **KWARGS)
+    assert "Hola" in response_es or "hola" in response_es.lower()
 
 
 if __name__ == "__main__":
