@@ -9,7 +9,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
-from .tools import bash, edit_file, load_image, read_file, subtask
+from .tools import bash, edit_file, read_file, subtask
 from .utils import load_env
 
 configure_logging()
@@ -22,7 +22,7 @@ MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
 model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
-fns = [read_file, edit_file, bash, subtask, load_image]
+fns = [read_file, edit_file, bash, subtask]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
@@ -61,6 +61,7 @@ async def user_input() -> None:
         if llm_task and not llm_task.done():
             logger.info(f"{RED}...Interrupted. What now?{RESET}")
             llm_task.cancel()
+            event.app.exit()
 
     @kb.add("escape", "escape")
     def clear_input(event: KeyPressEvent) -> None:
@@ -79,9 +80,9 @@ async def user_input() -> None:
         global fns
         plan_mode = edit_file not in fns and bash not in fns
         if plan_mode:
-            fns = [read_file, edit_file, bash, subtask, load_image]
+            fns = [read_file, edit_file, bash, subtask]
         else:
-            fns = [read_file, load_image]
+            fns = [read_file]
         logger.info(f"{DIM}Plan mode: {'✓' if not plan_mode else '✗'}{RESET}")
 
     style = styles.Style.from_dict({"": "ansibrightblack"})

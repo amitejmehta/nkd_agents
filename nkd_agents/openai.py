@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Sequence
 
 from openai import AsyncOpenAI
 from openai.types.responses import (
@@ -93,7 +93,9 @@ def format_tool_results(
 async def llm(
     client: AsyncOpenAI,
     input: list[ResponseInputItemParam],
-    fns: list[Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]]
+    fns: Sequence[
+        Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
+    ]
     | None = None,
     **kwargs: Any,
 ) -> str:
