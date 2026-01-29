@@ -55,5 +55,3 @@ for f in examples/anthropic/test_*.py; do python3 -m "$(echo "${f%.py}" | tr / .
 ```bash
 pytest tests/ -v --cov=nkd_agents --cov-report=term-missing
 ```
-
-## CLI Usage
