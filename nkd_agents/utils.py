@@ -2,6 +2,7 @@ import difflib
 import inspect
 import logging
 import os
+import types
 from pathlib import Path
 from typing import Any, Callable, List, Literal, get_args, get_origin
 
@@ -57,6 +58,10 @@ def process_param_annotation(annotation: Any, param_sig: str) -> dict[str, Any]:
 
     if origin is Literal:
         return _handle_literal_annotation(args, param_sig, type_map)
+    elif origin is types.UnionType:
+        if len(args) != 2 or args[1] is not type(None):
+            raise ValueError(f"Only T | None unions supported: {param_sig}")
+        return process_param_annotation(args[0], param_sig)
     elif origin is list:
         return _handle_list_annotation(args, param_sig, type_map)
     elif annotation is list or annotation is List:
@@ -69,7 +74,7 @@ def process_param_annotation(annotation: Any, param_sig: str) -> dict[str, Any]:
 
 def extract_function_params(
     func: Callable[..., Any],
-) -> tuple[dict[str, str], list[str]]:
+) -> tuple[dict[str, Any], list[str]]:
     """Extract parameter schema and required list from a function signature.
     Supports core types: str, int, float, bool, list[T] of core types, and Literal of core types.
 
@@ -86,6 +91,8 @@ def extract_function_params(
 
         if param.default is inspect._empty:
             required_params.append(param.name)
+        else:
+            params[param.name]["default"] = param.default
 
     return params, required_params
 

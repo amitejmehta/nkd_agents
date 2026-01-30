@@ -33,8 +33,12 @@ class TestExtractFunctionParams:
         async def func(required: str, a: str = "x", b: int = 1, c: str = "y"):
             pass
 
-        _, required_list = extract_function_params(func)
+        params, required_list = extract_function_params(func)
         assert required_list == ["required"]
+        assert "default" not in params["required"]
+        assert params["a"]["default"] == "x"
+        assert params["b"]["default"] == 1
+        assert params["c"]["default"] == "y"
 
     @pytest.mark.asyncio
     async def test_literals(self):
@@ -152,6 +156,33 @@ class TestExtractFunctionParams:
         with pytest.raises(ValueError) as exc:
             _handle_literal_annotation((), "func.param", {})
         assert "Empty Literal" in str(exc.value)
+
+    @pytest.mark.asyncio
+    async def test_optional_type(self):
+        """T | None unions are supported and extract the base type."""
+
+        async def func(a: int, b: int | None = None, c: str | None = None):
+            pass
+
+        params, required_list = extract_function_params(func)
+        assert params["a"]["type"] == "integer"
+        assert params["b"]["type"] == "integer"
+        assert params["c"]["type"] == "string"
+        assert required_list == ["a"]
+        assert "default" not in params["a"]
+        assert params["b"]["default"] is None
+        assert params["c"]["default"] is None
+
+    @pytest.mark.asyncio
+    async def test_non_optional_union_error(self):
+        """Unions other than T | None raise error."""
+
+        async def func(val: int | str):
+            pass
+
+        with pytest.raises(ValueError) as exc:
+            extract_function_params(func)
+        assert "Only T | None unions supported" in str(exc.value)
 
     @pytest.mark.asyncio
     async def test_no_parameters(self):
