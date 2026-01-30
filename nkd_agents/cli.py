@@ -42,7 +42,7 @@ async def user_input() -> None:
     """Configure then launch user chat CLI"""
     kb = key_binding.KeyBindings()
 
-    @kb.add("c-j")
+    @kb.add("c-l")
     def switch_model(event: KeyPressEvent) -> None:
         global model_idx
         model_idx = (model_idx + 1) % len(MODELS)
@@ -55,16 +55,12 @@ async def user_input() -> None:
         msgs.clear()
         logger.info(f"{DIM}Cleared {length} msgs{RESET}")
 
-    @kb.add("escape")
+    @kb.add("escape", "escape")
     def interrupt(event: KeyPressEvent) -> None:
         if llm_task and not llm_task.done():
             logger.info(f"{RED}...Interrupted. What now?{RESET}")
             llm_task.cancel()
             event.app.exit()
-
-    @kb.add("escape", "escape")
-    def clear_input(event: KeyPressEvent) -> None:
-        event.app.current_buffer.reset()
 
     @kb.add("tab")
     def toggle_thinking(event: KeyPressEvent) -> None:
@@ -99,11 +95,10 @@ async def main_async() -> None:
         f"\n\n{DIM}nkd_agents\n\n"
         "'tab':       toggle thinking\n"
         "'shift+tab': toggle plan mode\n"
-        "'esc':       interrupt\n"
-        "'esc esc':   clear input\n"
-        "'ctrl+j':    next model\n"
+        "'esc esc':   interrupt\n"
+        "'ctrl+u':    clear input\n"
         "'ctrl+k':    clear history\n"
-        "'ctrl+u':    clear inline input\n"
+        "'ctrl+l':    next model\n"
         f"'ctrl+c':    exit{RESET}\n",
     )
 
