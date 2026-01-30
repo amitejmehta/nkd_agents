@@ -56,12 +56,12 @@ def extract_text_and_tool_calls(
         if item.type == "reasoning":
             for content in item.summary:
                 if item.type == "text":
-                    logger.info(f"Reasoning (summary): {content.text}")
+                    logger.info(f"{response.model} Reasoning: {content.text}")
         if item.type == "message":
             for content in item.content:
                 if content.type == "output_text":
                     text += content.text
-                    logger.info(f"{content.text}")
+                    logger.info(f"{response.model}: {content.text}")
         elif item.type == "function_call":
             tool_calls.append(item)
 
@@ -87,6 +87,7 @@ async def llm(
     fns: Sequence[
         Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
     ] = (),
+    client_override: AsyncOpenAI | None = None,
     **kwargs: Any,
 ) -> str:
     """Run GPT in agentic loop (run until no tool calls, then return text).
@@ -100,11 +101,13 @@ async def llm(
     - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
+    c = client_override or client.get()
     tool_dict = {fn.__name__: fn for fn in fns}
     tools = [tool_schema(fn) for fn in fns]
 
     while True:
-        resp = await client.get().responses.parse(input=input, tools=tools, **kwargs)
+        resp = await c.responses.parse(input=input, tools=tools, **kwargs)
+        logger.info(f"usage={resp.usage}")
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this

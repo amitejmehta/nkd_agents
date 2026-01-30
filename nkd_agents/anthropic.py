@@ -62,10 +62,10 @@ def extract_text_and_tool_calls(
 
     for block in response.content:
         if block.type == "thinking":
-            logger.info(f"Thinking: {block.thinking}")
+            logger.info(f"{response.model}: Thinking: {block.thinking}")
         if block.type == "text":
             text += block.text
-            logger.info(f"{block.text}")
+            logger.info(f"{response.model}: {block.text}")
         elif block.type == "tool_use":
             tool_calls.append(block)
 
@@ -91,6 +91,7 @@ def format_tool_results(
 async def llm(
     input: list[BetaMessageParam],
     fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] = (),
+    client_override: AsyncAnthropic | AsyncAnthropicVertex | None = None,
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop (run until no tool calls, then return text).
@@ -105,6 +106,7 @@ async def llm(
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     - Uses anthropic ephemeral (5min) prompt caching by always setting breakpoint at last message.
     """
+    c = client_override or client.get()
     tool_dict = {fn.__name__: fn for fn in fns}
     tools = [tool_schema(fn) for fn in fns]
 
@@ -112,12 +114,13 @@ async def llm(
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        resp: BetaMessage = await client.get().beta.messages.create(
+        resp: BetaMessage = await c.beta.messages.create(
             messages=input,
             tools=tools,
             betas=["structured-outputs-2025-11-13"],
             **kwargs,
         )
+        logger.info(f"stop_reason={resp.stop_reason}\nusage={resp.usage}")
 
         if fns:
             del input[-1]["content"][-1]["cache_control"]  # type: ignore # TODO: fix this
