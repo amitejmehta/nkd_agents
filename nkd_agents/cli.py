@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from pathlib import Path
 
 from anthropic import AsyncAnthropic, omit
@@ -13,7 +14,7 @@ from .logging import DIM, GREEN, RED, RESET, configure_logging
 from .tools import bash, edit_file, read_file, subtask
 from .utils import load_env
 
-configure_logging()
+configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
 load_env()
 logger = logging.getLogger(__name__)
 anthropic.client.set(AsyncAnthropic())
