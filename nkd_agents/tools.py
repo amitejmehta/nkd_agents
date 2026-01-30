@@ -81,6 +81,7 @@ async def read_file(
             text = bytes.decode("utf-8", errors="ignore").strip()
             return [{"type": "text", "text": text}]
     except Exception as e:
+        logger.warning(f"Error reading file '{path}': {str(e)}")
         return f"Error reading file '{path}': {str(e)}"
 
 
@@ -127,6 +128,7 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         resolved_path.write_text(edited_content, encoding="utf-8")
         return f"Success: Updated {resolved_path}"
     except Exception as e:
+        logger.warning(f"Error editing file '{path}': {str(e)}")
         return f"Error editing file '{path}': {str(e)}"
 
 
@@ -160,7 +162,8 @@ async def bash(command: str) -> str:
             await process.wait()
         raise
     except Exception as e:
-        return f"Error executing command: {str(e)}"
+        logger.warning(f"Error executing bash command: {str(e)}")
+        return f"Error executing bash command: {str(e)}"
 
 
 async def subtask(
@@ -190,4 +193,5 @@ async def subtask(
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
     except Exception as e:
+        logger.warning(f"Error executing subtask '{task_label}': {str(e)}")
         return f"Error executing subtask '{task_label}': {str(e)}"
