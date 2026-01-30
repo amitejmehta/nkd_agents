@@ -16,7 +16,7 @@ from .utils import load_env
 configure_logging()
 load_env()
 logger = logging.getLogger(__name__)
-anthropic.client = AsyncAnthropic()
+anthropic.client.set(AsyncAnthropic())
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
@@ -113,9 +113,6 @@ async def main_async() -> None:
 
     except (KeyboardInterrupt, EOFError):
         logger.info(f"{DIM}Exiting...{RESET}")
-    finally:
-        assert anthropic.client
-        await anthropic.client.close()
 
 
 def main() -> None:

@@ -3,7 +3,7 @@ from contextvars import ContextVar
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import llm, user
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -33,9 +33,7 @@ async def main():
 
     Pattern: Set context var, call llm() with tools. Reuse cached client.
     """
-    from nkd_agents import anthropic
-
-    anthropic.client = AsyncAnthropic()
+    client.set(AsyncAnthropic())
     prompt = "Greet Alice"
     current_language.set("english")
     response_en = await llm([user(prompt)], fns=[greet], **KWARGS)

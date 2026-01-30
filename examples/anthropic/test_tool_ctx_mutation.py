@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import llm, user
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -44,9 +44,7 @@ async def main():
 
     Pattern: Set context var, call llm() with tools. Reuse cached client.
     """
-    from nkd_agents import anthropic
-
-    anthropic.client = AsyncAnthropic()
+    client.set(AsyncAnthropic())
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 

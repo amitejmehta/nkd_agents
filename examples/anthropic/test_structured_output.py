@@ -3,7 +3,7 @@ import logging
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel
 
-from nkd_agents.anthropic import llm, output_format, user
+from nkd_agents.anthropic import client, llm, output_format, user
 
 from ..utils import test
 from .config import KWARGS
@@ -43,9 +43,7 @@ async def main():
 
     Pattern: Reuse cached client, pass tools (empty list when no tools).
     """
-    from nkd_agents import anthropic
-
-    anthropic.client = AsyncAnthropic()
+    client.set(AsyncAnthropic())
     prompt = "What's the weather in Paris?"
     kwargs = {**KWARGS, "output_format": output_format(Weather)}
 

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Iterable, Sequence
 
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex, transform_schema
@@ -18,18 +19,7 @@ from pydantic import BaseModel
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
-
-client: AsyncAnthropic | AsyncAnthropicVertex | None = None
-
-
-def _get_client() -> AsyncAnthropic | AsyncAnthropicVertex:
-    """Return the client instance. Raises if not set."""
-    if client is None:
-        raise RuntimeError(
-            "anthropic.client must be set before calling llm(). "
-            "Example: anthropic.client = AsyncAnthropic()"
-        )
-    return client
+client = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client")
 
 
 def user(content: str) -> BetaMessageParam:
@@ -123,7 +113,7 @@ async def llm(
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        resp: BetaMessage = await _get_client().beta.messages.create(
+        resp: BetaMessage = await client.get().beta.messages.create(
             messages=input, betas=["structured-outputs-2025-11-13"], **kwargs
         )
 

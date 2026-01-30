@@ -3,7 +3,7 @@ from typing import Literal
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import llm, user
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -42,9 +42,7 @@ async def main():
 
     Pattern: Reuse cached client, pass tools list (required).
     """
-    from nkd_agents import anthropic
-
-    anthropic.client = AsyncAnthropic()
+    client.set(AsyncAnthropic())
     prompt = "I want to visit Tokyo or Osaka from New York for 4 nights. I'm on a budget. What's the cheapest total cost?"
     tools = [search_flights, search_hotels, calculate_total_cost]
 

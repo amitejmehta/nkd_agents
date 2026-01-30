@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Sequence
 
 from openai import AsyncOpenAI
@@ -16,18 +17,7 @@ from openai.types.responses.response_input_item_param import FunctionCallOutput
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
-
-client: AsyncOpenAI | None = None
-
-
-def _get_client() -> AsyncOpenAI:
-    """Return the client instance. Raises if not set."""
-    if client is None:
-        raise RuntimeError(
-            "openai.client must be set before calling llm(). "
-            "Example: openai.client = AsyncOpenAI()"
-        )
-    return client
+client = ContextVar[AsyncOpenAI]("client")
 
 
 def user(content: str) -> ResponseInputItemParam:
@@ -116,7 +106,7 @@ async def llm(
     kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        resp = await _get_client().responses.parse(input=input, **kwargs)
+        resp = await client.get().responses.parse(input=input, **kwargs)
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this

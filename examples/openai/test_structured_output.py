@@ -3,7 +3,7 @@ import logging
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from nkd_agents.openai import llm, user
+from nkd_agents.openai import client, llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -43,9 +43,7 @@ async def main():
 
     Pattern: Use cached  always pass tools list (required).
     """
-    from nkd_agents import openai
-
-    openai.client = AsyncOpenAI()
+    client.set(AsyncOpenAI())
     kwargs = {"text_format": Weather, **KWARGS}
     input = [user("What's the weather in Paris?")]
     # 1. Structured output: pass empty tools list

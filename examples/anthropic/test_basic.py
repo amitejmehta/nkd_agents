@@ -2,7 +2,7 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import llm, user
+from nkd_agents.anthropic import client, llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -32,12 +32,8 @@ async def main():
     Demonstrates:
     1. Simple string prompt with no tools
     2. Basic tool call
-
-    Key pattern: Client is managed automatically via singleton.
     """
-    from nkd_agents import anthropic
-
-    anthropic.client = AsyncAnthropic()
+    client.set(AsyncAnthropic())
     prompt = "What's the weather in Paris?"
     # 1. No tools
     logger.info("1. Basic usage (no tools)")
