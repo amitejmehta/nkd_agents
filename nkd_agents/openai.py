@@ -86,8 +86,7 @@ async def llm(
     input: list[ResponseInputItemParam],
     fns: Sequence[
         Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
-    ]
-    | None = None,
+    ] = (),
     **kwargs: Any,
 ) -> str:
     """Run GPT in agentic loop (run until no tool calls, then return text).
@@ -101,12 +100,11 @@ async def llm(
     - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
-    fns = fns or []
     tool_dict = {fn.__name__: fn for fn in fns}
-    kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
+    tools = [tool_schema(fn) for fn in fns]
 
     while True:
-        resp = await client.get().responses.parse(input=input, **kwargs)
+        resp = await client.get().responses.parse(input=input, tools=tools, **kwargs)
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input += resp.output  # type: ignore # TODO: fix this

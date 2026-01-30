@@ -90,7 +90,7 @@ def format_tool_results(
 
 async def llm(
     input: list[BetaMessageParam],
-    fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] | None = None,
+    fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] = (),
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop (run until no tool calls, then return text).
@@ -105,16 +105,18 @@ async def llm(
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     - Uses anthropic ephemeral (5min) prompt caching by always setting breakpoint at last message.
     """
-    fns = fns or []
     tool_dict = {fn.__name__: fn for fn in fns}
-    kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
+    tools = [tool_schema(fn) for fn in fns]
 
     while True:
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
         resp: BetaMessage = await client.get().beta.messages.create(
-            messages=input, betas=["structured-outputs-2025-11-13"], **kwargs
+            messages=input,
+            tools=tools,
+            betas=["structured-outputs-2025-11-13"],
+            **kwargs,
         )
 
         if fns:
