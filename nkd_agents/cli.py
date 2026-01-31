@@ -15,8 +15,30 @@ from .tools import bash, edit_file, read_file, subtask
 from .utils import load_env
 
 configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
-load_env()
 logger = logging.getLogger(__name__)
+
+
+def ensure_api_key() -> None:
+    """Ensure ANTHROPIC_API_KEY is available. Save to config if in environ."""
+    config_dir = Path.home() / ".nkd_agents"
+    config_file = config_dir / ".env"
+
+    if key := os.environ.get("ANTHROPIC_API_KEY"):
+        config_dir.mkdir(exist_ok=True)
+        config_file.write_text(f"ANTHROPIC_API_KEY={key}\n")
+        logger.info(f"{DIM}Saved API key to {config_file}{RESET}")
+        return
+
+    load_env(config_file.as_posix())
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return
+
+    raise ValueError(
+        "ANTHROPIC_API_KEY not found.\nSet once via: ANTHROPIC_API_KEY=sk-... nkd_agents"
+    )
+
+
+ensure_api_key()
 anthropic.client.set(AsyncAnthropic())
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state

@@ -10,36 +10,24 @@ The best way to get acquainted is to check out our examples! [`examples/anthropi
 
 ## Installation
 
+**Package:**
 ```bash
-uv pip install -U nkd_agents
+uv pip install nkd_agents  # or: pip install nkd_agents
 ```
 
-For CLI support (interactive chat), install with the `cli` extra:
+**CLI (install once, use everywhere):**
 ```bash
-uv pip install -U nkd_agents[cli]
-```
+uv tool install nkd_agents[cli]  # or: pipx install nkd_agents[cli]
+# Makes `nkd_agents` CLI command globally available. Package not in venvs; venv installs take precedence.
 
-## Chat
+# Configure & launch (saves key to ~/.nkd_agents/.env)
+ANTHROPIC_API_KEY=sk-... nkd_agents
 
-Chat with your own Claude Code style agent! Uses the `llm` function with `read_file`, `edit_file`, `bash`, and `subtask` (sub-agent) tools.
-
-```bash
-export ANTHROPIC_API_KEY=your_api_key_here
+# Subsequent launches
 nkd_agents
-```
-Alternatively, set `ANTHROPIC_API_KEY` in a `.env` file in your `cwd` (will automatically be loaded).
 
-### Docker Sandbox
-
-To run in an isolated Docker container:
-
-```bash
+# Docker (isolated sandbox)
 docker build -t nkd_agents https://github.com/amitejmehta/nkd_agents.git
-docker run -it -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY nkd_agents
-```
-
-Run with volume mount:
-```bash
 docker run -it -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY -v $(pwd):/workspace nkd_agents
 ```
 
