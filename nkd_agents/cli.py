@@ -23,19 +23,18 @@ def ensure_api_key() -> None:
     config_dir = Path.home() / ".nkd_agents"
     config_file = config_dir / ".env"
 
-    if key := os.environ.get("ANTHROPIC_API_KEY"):
+    if key := os.environ.get("NKD_AGENTS_ANTHROPIC_API_KEY"):
         config_dir.mkdir(exist_ok=True)
-        config_file.write_text(f"ANTHROPIC_API_KEY={key}\n")
-        logger.info(f"{DIM}Saved API key to {config_file}{RESET}")
-        return
+        config_file.write_text(f"NKD_AGENTS_ANTHROPIC_API_KEY={key}\n")
+    else:
+        load_env(config_file.as_posix())
 
-    load_env(config_file.as_posix())
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return
-
-    raise ValueError(
-        "ANTHROPIC_API_KEY not found.\nSet once via: ANTHROPIC_API_KEY=sk-... nkd_agents"
-    )
+    if key := os.environ.get("NKD_AGENTS_ANTHROPIC_API_KEY"):
+        os.environ["ANTHROPIC_API_KEY"] = key
+    else:
+        raise ValueError(
+            "ANTHROPIC_API_KEY not found.\nSet once via: NKD_AGENTS_ANTHROPIC_API_KEY=sk-... nkd_agents"
+        )
 
 
 ensure_api_key()

@@ -18,17 +18,18 @@ uv pip install nkd_agents  # or: pip install nkd_agents
 **CLI (install once, use everywhere):**
 ```bash
 uv tool install nkd_agents[cli]  # or: pipx install nkd_agents[cli]
-# Makes `nkd_agents` CLI command globally available. Package not in venvs; venv installs take precedence.
+# Makes `nkd_agents` CLI command globally available. Package not in venvs; venv installs of package will take precedence.
 
 # Configure & launch (saves key to ~/.nkd_agents/.env)
-ANTHROPIC_API_KEY=sk-... nkd_agents
+NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY nkd_agents
 
 # Subsequent launches
 nkd_agents
 
 # Docker (isolated sandbox)
 docker build -t nkd_agents https://github.com/amitejmehta/nkd_agents.git
-docker run -it -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY -v $(pwd):/workspace nkd_agents
+docker run -it -v ~/.nkd_agents:/home/agent/.nkd_agents -v $(pwd):/workspace nkd_agents
+# First run needs: docker run -it -e NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY ...
 ```
 
 ## Contributing
