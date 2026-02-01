@@ -16,6 +16,8 @@ uv pip install nkd_agents  # or: pip install nkd_agents
 ```
 
 **CLI (install once, use everywhere):**
+
+via `uv tool` (or `pipx`)
 ```bash
 uv tool install nkd_agents[cli]  # or: pipx install nkd_agents[cli]
 # Makes `nkd_agents` CLI command globally available. Package not in venvs; venv installs of package will take precedence.
