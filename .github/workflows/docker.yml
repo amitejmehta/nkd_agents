@@ -19,15 +19,15 @@ jobs:
     
     - name: Sanity check - Start container and verify it runs
       run: |
-        # Start container with a 5-second timeout
-        # Exit code 0 means clean exit (non-TTY detected)
-        # Exit code 124 means timeout (if running in TTY mode)
-        timeout 5s docker run --rm nkd-agents:test || EXIT_CODE=$?
+        # Capture stderr to check for expected error
+        OUTPUT=$(docker run --rm nkd-agents:test 2>&1 || true)
         
-        if [ "${EXIT_CODE:-0}" -eq 0 ] || [ "${EXIT_CODE:-0}" -eq 124 ]; then
-          echo "✓ Container started successfully"
+        # Success if CLI loads and raises expected API key error
+        if echo "$OUTPUT" | grep -q "ANTHROPIC_API_KEY not found"; then
+          echo "✓ Container started and CLI loaded correctly (expected API key error)"
           exit 0
         else
-          echo "✗ Container failed with unexpected exit code: ${EXIT_CODE:-0}"
+          echo "✗ Unexpected output:"
+          echo "$OUTPUT"
           exit 1
         fi
