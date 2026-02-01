@@ -10,12 +10,13 @@ The best way to get acquainted is to check out our examples! [`examples/anthropi
 
 ## Installation
 
-**Package:**
+**Package** (build AI agents programmatically with Anthropic/OpenAI):
+
 ```bash
 uv pip install nkd_agents  # or: pip install nkd_agents
 ```
 
-**CLI (install once, use everywhere):**
+**CLI** (Claude Code-style coding assistant in Python - chat with an AI that can read/edit files and run bash):
 
 via `uv tool` (or `pipx`)
 ```bash
