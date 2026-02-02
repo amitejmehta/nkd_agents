@@ -16,7 +16,7 @@ The best way to get acquainted is to check out our examples! [`examples/anthropi
 uv pip install nkd_agents  # or: pip install nkd_agents
 ```
 
-**CLI** (Claude Code-style coding assistant in Python - chat with an AI that can read/edit files and run bash):
+**CLI** (Claude Code-style coding assistant in Python):
 
 via `uv tool` (or `pipx`)
 ```bash
