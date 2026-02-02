@@ -68,6 +68,18 @@ def extract_text_and_tool_calls(
     return text, tool_calls
 
 
+async def tool(
+    tool_dict: dict[
+        str, Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
+    ],
+    tool_call: ParsedResponseFunctionToolCall,
+) -> str | ResponseFunctionCallOutputItemListParam:
+    try:
+        return await tool_dict[tool_call.name](**json.loads(tool_call.arguments))
+    except Exception as e:
+        return f"Error calling tool {tool_call.name}: {str(e)}"
+
+
 def format_tool_results(
     tool_calls: list[ParsedResponseFunctionToolCall],
     results: list[str | ResponseFunctionCallOutputItemListParam],
@@ -116,8 +128,8 @@ async def llm(
             return text
 
         try:
-            tasks = [tool_dict[c.name](**json.loads(c.arguments)) for c in tool_calls]
-            input += format_tool_results(tool_calls, await asyncio.gather(*tasks))
+            results = await asyncio.gather(*[tool(tool_dict, c) for c in tool_calls])
+            input += format_tool_results(tool_calls, results)
         except asyncio.CancelledError:
             input += format_tool_results(tool_calls, ["Interrupted"] * len(tool_calls))
             raise
