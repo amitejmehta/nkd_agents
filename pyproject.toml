@@ -22,7 +22,9 @@ nkd_agents = "nkd_agents.cli:main"
 
 [project.optional-dependencies]
 cli = [
-    "prompt-toolkit>=3.0.52,<4.0.0",
+    "prompt-toolkit>=3.0.52,<4.0.0", # cli user input 
+    "trafilatura>=2.0.0,<3.0.0", # for fetch_url
+    "playwright>=1.40.0,<2.0.0", # for web_search
 ]
 dev = [
     "freezegun==1.5.1",

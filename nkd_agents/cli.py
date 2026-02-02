@@ -11,7 +11,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from . import anthropic
 from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
-from .tools import bash, edit_file, read_file, subtask
+from .tools import bash, edit_file, fetch_url, read_file, subtask, web_search
 from .utils import load_env
 
 configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
@@ -43,7 +43,7 @@ MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
 model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
-fns = [read_file, edit_file, bash, subtask]
+fns = [read_file, edit_file, bash, subtask, fetch_url, web_search]
 msgs: list[BetaMessageParam] = []
 q: asyncio.Queue[BetaMessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
@@ -97,9 +97,9 @@ async def user_input() -> None:
         global fns
         plan_mode = edit_file not in fns and bash not in fns
         if plan_mode:
-            fns = [read_file, edit_file, bash, subtask]
+            fns = [read_file, edit_file, bash, subtask, fetch_url, web_search]
         else:
-            fns = [read_file]
+            fns = [read_file, fetch_url, web_search]
         logger.info(f"{DIM}Plan mode: {'✓' if not plan_mode else '✗'}{RESET}")
 
     style = styles.Style.from_dict({"": "ansibrightblack"})

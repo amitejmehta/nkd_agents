@@ -1,12 +1,17 @@
 import asyncio
 import base64
+import hashlib
 import logging
+import tempfile
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
+import httpx
+import trafilatura
 from anthropic.types.beta import BetaBase64ImageSourceParam, BetaBase64PDFSourceParam
 from anthropic.types.beta.beta_tool_result_block_param import Content
+from playwright.async_api import async_playwright
 
 from .anthropic import llm, user
 from .logging import GREEN, RESET, logging_ctx
@@ -166,6 +171,81 @@ async def bash(command: str) -> str:
         return f"Error executing bash command: {str(e)}"
 
 
+async def web_search(query: str, max_results: int = 5) -> str:
+    """Search the web using DuckDuckGo via headless browser.
+
+    Args:
+        query: Search query string
+        max_results: Maximum number of results to return (default: 5)
+
+    Returns:
+        Search results as text, or error message.
+        Use fetch_url to get full content of interesting URLs.
+    """
+    try:
+        logger.info(f"Searching: {GREEN}{query}{RESET}")
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, channel="chrome")
+            ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            ctx = await browser.new_context(user_agent=ua)
+            page = await ctx.new_page()
+            await page.goto(f"https://duckduckgo.com/?q={query}&ia=web")
+            await page.wait_for_selector("article", timeout=10000)
+            results = await page.eval_on_selector_all(
+                "article",
+                """els => els.slice(0, %d).map(el => {
+                    const a = el.querySelector('a[data-testid="result-title-a"]');
+                    const snippet = el.querySelector('div[data-result="snippet"]');
+                    return {
+                        title: a?.innerText || '',
+                        url: a?.href || '',
+                        snippet: snippet?.innerText || ''
+                    };
+                }).filter(r => r.url)"""
+                % max_results,
+            )
+            await browser.close()
+
+        if not results:
+            return "No results found"
+        output = "\n\n".join(
+            f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['snippet']}"
+            for r in results
+        )
+        logger.info(f"Found {len(results)} results:\n{output}")
+        return output
+    except Exception as e:
+        logger.warning(f"Error searching '{query}': {str(e)}")
+        return f"Error searching '{query}': {str(e)}"
+
+
+async def fetch_url(url: str) -> str:
+    """Fetch a webpage, extract main content, and save to a temp file.
+
+    Args:
+        url: The URL to fetch
+
+    Returns:
+        Path to temp file containing extracted text, or error message.
+        Use bash with grep/head/tail to explore the content.
+    """
+    try:
+        logger.info(f"Fetching: {GREEN}{url}{RESET}")
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+
+        text = trafilatura.extract(response.text) or response.text[:50000]
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+        filepath = Path(tempfile.gettempdir()) / f"fetch_{url_hash}.txt"
+        filepath.write_text(text, encoding="utf-8")
+        logger.info(f"Saved {len(text)} chars to {filepath}")
+        return f"Saved {len(text)} chars to {filepath}"
+    except Exception as e:
+        logger.warning(f"Error fetching '{url}': {str(e)}")
+        return f"Error fetching '{url}': {str(e)}"
+
+
 async def subtask(
     prompt: str, task_label: str, model: Literal["haiku", "sonnet"]
 ) -> str:
@@ -187,7 +267,7 @@ async def subtask(
     """
     try:
         logging_ctx.set({"subtask": task_label})
-        tools = [read_file, edit_file, bash]
+        tools = [read_file, edit_file, bash, fetch_url, web_search]
         kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
         response = await llm([user(prompt)], fns=tools, **kwargs)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
