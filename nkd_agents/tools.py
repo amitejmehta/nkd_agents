@@ -175,6 +175,26 @@ async def bash(command: str) -> str:
         return f"Error executing bash command: {str(e)}"
 
 
+def _clean_html(soup: BeautifulSoup) -> None:
+    """Remove unwanted tags from BeautifulSoup object in-place."""
+    for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+        tag.decompose()
+
+    for pattern in [
+        "menu",
+        "sidebar",
+        "breadcrumb",
+        "search",
+        "cookie",
+        "banner",
+        "dialog",
+    ]:
+        for tag in soup.find_all(class_=re.compile(pattern, re.I)):
+            tag.decompose()
+        for tag in soup.find_all(id=re.compile(pattern, re.I)):
+            tag.decompose()
+
+
 async def fetch_url(url: str) -> str:
     """Fetch a webpage and convert to clean markdown.
 
@@ -192,27 +212,7 @@ async def fetch_url(url: str) -> str:
             html = response.text
 
         soup = BeautifulSoup(html, "html.parser")
-
-        # Remove unwanted tags
-        for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
-            tag.decompose()
-
-        for pattern in [
-            "nav",
-            "menu",
-            "sidebar",
-            "breadcrumb",
-            "search",
-            "cookie",
-            "banner",
-            "dialog",
-        ]:
-            for tag in soup.find_all(class_=re.compile(pattern, re.I)):
-                tag.decompose()
-            for tag in soup.find_all(id=re.compile(pattern, re.I)):
-                tag.decompose()
-
-        markdown = markdownify(str(soup), heading_style="ATX")
+        markdown = markdownify(str(_clean_html(soup)), heading_style="ATX")
 
         parsed = urlparse(url)
         domain = parsed.netloc
