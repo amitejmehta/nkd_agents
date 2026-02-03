@@ -13,8 +13,9 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "anthropic>=0.74.0,<=1.0.0",
+    "anthropic>=0.77.0,<=1.0.0",
     "openai>=2.11.0,<=3.0.0",
+    "markdownify>=0.14.1,<1.0.0",
 ]
 
 [project.scripts]
@@ -22,9 +23,7 @@ nkd_agents = "nkd_agents.cli:main"
 
 [project.optional-dependencies]
 cli = [
-    "prompt-toolkit>=3.0.52,<4.0.0", # cli user input 
-    "trafilatura>=2.0.0,<3.0.0", # for fetch_url
-    "playwright>=1.40.0,<2.0.0", # for web_search
+    "prompt-toolkit>=3.0.52,<4.0.0", # cli user input
 ]
 dev = [
     "freezegun==1.5.1",

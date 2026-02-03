@@ -115,10 +115,10 @@ async def llm(
     """
     c = client_override or client.get()
     tool_dict = {fn.__name__: fn for fn in fns}
-    tools = [tool_schema(fn) for fn in fns]
+    kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        resp = await c.responses.parse(input=input, tools=tools, **kwargs)
+        resp = await c.responses.parse(input=input, **kwargs)
         logger.info(f"usage={resp.usage}")
 
         text, tool_calls = extract_text_and_tool_calls(resp)

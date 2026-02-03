@@ -1,7 +1,6 @@
 import logging
 
 from anthropic import AsyncAnthropic
-from anthropic.types.beta import BetaMessageParam
 
 from nkd_agents.anthropic import client, llm, user
 
@@ -37,7 +36,7 @@ async def main():
     """
     client.set(AsyncAnthropic())
     logger.info("1. Conversation history")
-    msgs: list[BetaMessageParam] = [user("I live in Paris")]
+    msgs = [user("I live in Paris")]
     _ = await llm(msgs, **KWARGS)
 
     msgs.append(user("What's the weather?"))

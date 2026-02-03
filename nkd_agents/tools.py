@@ -1,28 +1,32 @@
 import asyncio
 import base64
-import hashlib
 import logging
+import re
 import tempfile
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import httpx
-import trafilatura
-from anthropic.types.beta import BetaBase64ImageSourceParam, BetaBase64PDFSourceParam
-from anthropic.types.beta.beta_tool_result_block_param import Content
-from playwright.async_api import async_playwright
+from anthropic.types import Base64ImageSourceParam, Base64PDFSourceParam
+from anthropic.types.tool_result_block_param import Content
+from bs4 import BeautifulSoup
+from markdownify import markdownify
 
 from .anthropic import llm, user
 from .logging import GREEN, RESET, logging_ctx
 from .utils import display_diff
 
 logger = logging.getLogger(__name__)
-
 # Context variable for sandbox directory - when set, all file operations (read_file,
 # edit_file, bash) are restricted to this directory. Only relative paths are
 # allowed when sandbox is active (absolute paths will error). This prevents escaping the sandbox.
 sandbox_ctx = ContextVar[str | None]("sandbox_ctx", default=None)
+
+# Temporary directory for fetch_url cache - cleaned up on process exit
+_fetch_cache_tmpdir = tempfile.TemporaryDirectory(prefix="nkd_fetch_")
+FETCH_CACHE = Path(_fetch_cache_tmpdir.name)
 
 
 def resolve_path(path: str) -> Path | str:
@@ -69,14 +73,14 @@ async def read_file(
         bytes = resolved_path.read_bytes()
 
         if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
-            source = BetaBase64ImageSourceParam(
+            source = Base64ImageSourceParam(
                 type="base64",
                 media_type=media_type,
                 data=base64.standard_b64encode(bytes).decode("utf-8"),
             )
             return [{"type": "image", "source": source}]
         elif media_type == "application/pdf":
-            source = BetaBase64PDFSourceParam(
+            source = Base64PDFSourceParam(
                 type="base64",
                 media_type="application/pdf",
                 data=base64.standard_b64encode(bytes).decode("utf-8"),
@@ -171,76 +175,57 @@ async def bash(command: str) -> str:
         return f"Error executing bash command: {str(e)}"
 
 
-async def web_search(query: str, max_results: int = 5) -> str:
-    """Search the web using DuckDuckGo via headless browser.
-
-    Args:
-        query: Search query string
-        max_results: Maximum number of results to return (default: 5)
-
-    Returns:
-        Search results as text, or error message.
-        Use fetch_url to get full content of interesting URLs.
-    """
-    try:
-        logger.info(f"Searching: {GREEN}{query}{RESET}")
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True, channel="chrome")
-            ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-            ctx = await browser.new_context(user_agent=ua)
-            page = await ctx.new_page()
-            await page.goto(f"https://duckduckgo.com/?q={query}&ia=web")
-            await page.wait_for_selector("article", timeout=10000)
-            results = await page.eval_on_selector_all(
-                "article",
-                """els => els.slice(0, %d).map(el => {
-                    const a = el.querySelector('a[data-testid="result-title-a"]');
-                    const snippet = el.querySelector('div[data-result="snippet"]');
-                    return {
-                        title: a?.innerText || '',
-                        url: a?.href || '',
-                        snippet: snippet?.innerText || ''
-                    };
-                }).filter(r => r.url)"""
-                % max_results,
-            )
-            await browser.close()
-
-        if not results:
-            return "No results found"
-        output = "\n\n".join(
-            f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['snippet']}"
-            for r in results
-        )
-        logger.info(f"Found {len(results)} results:\n{output}")
-        return output
-    except Exception as e:
-        logger.warning(f"Error searching '{query}': {str(e)}")
-        return f"Error searching '{query}': {str(e)}"
-
-
 async def fetch_url(url: str) -> str:
-    """Fetch a webpage, extract main content, and save to a temp file.
+    """Fetch a webpage and convert to clean markdown.
 
     Args:
         url: The URL to fetch
 
     Returns:
-        Path to temp file containing extracted text, or error message.
-        Use bash with grep/head/tail to explore the content.
+        Markdown content of the page, or error message.
     """
     try:
         logger.info(f"Fetching: {GREEN}{url}{RESET}")
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             response = await client.get(url)
             response.raise_for_status()
+            html = response.text
 
-        text = trafilatura.extract(response.text) or response.text[:50000]
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-        filepath = Path(tempfile.gettempdir()) / f"fetch_{url_hash}.txt"
-        filepath.write_text(text, encoding="utf-8")
-        logger.info(f"Saved {len(text)} chars to {filepath}")
-        return f"Saved {len(text)} chars to {filepath}"
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Remove unwanted tags
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+            tag.decompose()
+
+        for pattern in [
+            "nav",
+            "menu",
+            "sidebar",
+            "breadcrumb",
+            "search",
+            "cookie",
+            "banner",
+            "dialog",
+        ]:
+            for tag in soup.find_all(class_=re.compile(pattern, re.I)):
+                tag.decompose()
+            for tag in soup.find_all(id=re.compile(pattern, re.I)):
+                tag.decompose()
+
+        markdown = markdownify(str(soup), heading_style="ATX")
+
+        parsed = urlparse(url)
+        domain = parsed.netloc
+        path_part = parsed.path.strip("/") or "index"
+        slug = re.sub(r"[^\w\-]", "_", path_part)[:200]
+
+        cache_subdir = FETCH_CACHE / domain
+        cache_subdir.mkdir(parents=True, exist_ok=True)
+        cache_path = cache_subdir / f"{slug}.md"
+        cache_path.write_text(markdown, encoding="utf-8")
+
+        logger.info(f"Saved {len(markdown):,} chars to {cache_path}")
+        return f"Fetched {len(markdown):,} chars to {cache_path}. Do not read the full file, use bash grep/head/tail w/ keywords to explore)"
     except Exception as e:
         logger.warning(f"Error fetching '{url}': {str(e)}")
         return f"Error fetching '{url}': {str(e)}"
@@ -251,7 +236,7 @@ async def subtask(
 ) -> str:
     """Spawn a sub-agent to work on a specific task autonomously.
 
-    The sub-agent will work on the given task with access to file read/edit and bash execution tools.
+    The sub-agent has access to file read/edit and bash execution tools, plus fetch_url tool.
     Use this for complex, multi-step tasks that benefit from focused attention.
 
     Args:
@@ -267,7 +252,7 @@ async def subtask(
     """
     try:
         logging_ctx.set({"subtask": task_label})
-        tools = [read_file, edit_file, bash, fetch_url, web_search]
+        tools = [read_file, edit_file, bash, fetch_url]
         kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
         response = await llm([user(prompt)], fns=tools, **kwargs)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")

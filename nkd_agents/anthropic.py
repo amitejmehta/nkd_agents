@@ -3,17 +3,17 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Iterable, Sequence
 
-from anthropic import AsyncAnthropic, AsyncAnthropicVertex, transform_schema
-from anthropic.types.beta import (
-    BetaJSONOutputFormatParam,
-    BetaMessage,
-    BetaMessageParam,
-    BetaTextBlockParam,
-    BetaToolParam,
-    BetaToolResultBlockParam,
-    BetaToolUseBlock,
+from anthropic import AsyncAnthropic, AsyncAnthropicVertex
+from anthropic.types import (
+    Message,
+    MessageParam,
+    OutputConfigParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ToolUseBlock,
 )
-from anthropic.types.beta.beta_tool_result_block_param import Content
+from anthropic.types.tool_result_block_param import Content
 from pydantic import BaseModel
 
 from .utils import extract_function_params
@@ -22,26 +22,37 @@ logger = logging.getLogger(__name__)
 client = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client")
 
 
-def user(content: str) -> BetaMessageParam:
+def user(content: str) -> MessageParam:
     "Take a string and return a full Anthropicuser message."
     return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
-def output_format(model: type[BaseModel]) -> BetaJSONOutputFormatParam:
-    schema = transform_schema(model.model_json_schema())
-    return {"type": "json_schema", "schema": schema}
+def output_config(model: type[BaseModel]) -> OutputConfigParam:
+    def add_additional_properties(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            if obj.get("type") == "object":
+                obj["additionalProperties"] = False
+            for v in obj.values():
+                add_additional_properties(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                add_additional_properties(item)
+        return obj
+
+    schema = add_additional_properties(model.model_json_schema())
+    return {"format": {"type": "json_schema", "schema": schema}}
 
 
 def tool_schema(
     func: Callable[..., Awaitable[Any]],
-) -> BetaToolParam:
+) -> ToolParam:
     """Convert a function to Anthropic's tool JSON schema."""
     if not func.__doc__:
         raise ValueError(f"Function {func.__name__} must have a docstring")
 
     parameters, required_parameters = extract_function_params(func)
 
-    return BetaToolParam(
+    return ToolParam(
         name=func.__name__,
         description=func.__doc__,
         input_schema={
@@ -55,8 +66,8 @@ def tool_schema(
 
 
 def extract_text_and_tool_calls(
-    response: BetaMessage,
-) -> tuple[str, list[BetaToolUseBlock]]:
+    response: Message,
+) -> tuple[str, list[ToolUseBlock]]:
     """Extract text and tool calls from an Anthropic message."""
     text, tool_calls = "", []
 
@@ -74,7 +85,7 @@ def extract_text_and_tool_calls(
 
 async def tool(
     tool_dict: dict[str, Callable[..., Awaitable[str | Iterable[Content]]]],
-    tool_call: BetaToolUseBlock,
+    tool_call: ToolUseBlock,
 ) -> str | Iterable[Content]:
     try:
         return await tool_dict[tool_call.name](**tool_call.input)
@@ -83,23 +94,23 @@ async def tool(
 
 
 def format_tool_results(
-    tool_calls: list[BetaToolUseBlock],
+    tool_calls: list[ToolUseBlock],
     results: list[str | Iterable[Content]],
-) -> list[BetaMessageParam]:
+) -> list[MessageParam]:
     """Format tool results into messages to append to conversation.
 
     For Anthropic, tool results are added as a new user message.
     """
     content = []
     for c, r in zip(tool_calls, results):
-        r = [BetaTextBlockParam(type="text", text=r)] if isinstance(r, str) else r
-        b = BetaToolResultBlockParam(type="tool_result", tool_use_id=c.id, content=r)
+        r = [TextBlockParam(type="text", text=r)] if isinstance(r, str) else r
+        b = ToolResultBlockParam(type="tool_result", tool_use_id=c.id, content=r)
         content.append(b)
     return [{"role": "user", "content": content}]
 
 
 async def llm(
-    input: list[BetaMessageParam],
+    input: list[MessageParam],
     fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] = (),
     client_override: AsyncAnthropic | AsyncAnthropicVertex | None = None,
     **kwargs: Any,
@@ -118,18 +129,13 @@ async def llm(
     """
     c = client_override or client.get()
     tool_dict = {fn.__name__: fn for fn in fns}
-    tools = [tool_schema(fn) for fn in fns]
+    kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        resp: BetaMessage = await c.beta.messages.create(
-            messages=input,
-            tools=tools,
-            betas=["structured-outputs-2025-11-13"],
-            **kwargs,
-        )
+        resp: Message = await c.messages.create(messages=input, **kwargs)
         logger.info(f"stop_reason={resp.stop_reason}\nusage={resp.usage}")
 
         if fns:

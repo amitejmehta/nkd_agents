@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 from anthropic import AsyncAnthropic
-from anthropic.types.beta import BetaMessageParam
 
 from nkd_agents.anthropic import client, llm, user
 
@@ -38,7 +37,7 @@ async def main():
     Pattern: Reuse cached client, always pass tools list (required).
     """
     client.set(AsyncAnthropic())
-    input: list[BetaMessageParam] = [user("Analyze the sales_data dataset")]
+    input = [user("Analyze the sales_data dataset")]
 
     task = asyncio.create_task(llm(input, [analyze_dataset, add], **KWARGS))
     await tool_running.wait()
