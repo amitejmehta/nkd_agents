@@ -245,3 +245,78 @@ class TestDisplayDiff:
         caplog.set_level(logging.INFO)
         display_diff("old\nline1\nline2", "new\nline1\nline3", "test.txt")
         assert "Update: test.txt" in caplog.text
+
+
+class TestCwdContext:
+    """Test cwd_ctx with relative paths in tools."""
+
+    @pytest.mark.asyncio
+    async def test_read_file_relative_path(self, tmp_path):
+        """read_file resolves relative paths against cwd_ctx."""
+        from nkd_agents.tools import cwd_ctx, read_file
+
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+        test_file = subdir / "test.txt"
+        test_file.write_text("content")
+
+        token = cwd_ctx.set(subdir)
+        try:
+            result = await read_file("test.txt")
+            assert result == [{"type": "text", "text": "content"}]
+        finally:
+            cwd_ctx.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_edit_file_relative_path(self, tmp_path):
+        """edit_file resolves relative paths against cwd_ctx."""
+        from nkd_agents.tools import cwd_ctx, edit_file
+
+        subdir = tmp_path / "subdir"
+        subdir.mkdir()
+
+        token = cwd_ctx.set(subdir)
+        try:
+            result = await edit_file("new.txt", "", "created")
+            assert "Success" in result
+            assert (subdir / "new.txt").read_text() == "created"
+        finally:
+            cwd_ctx.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_bash_cwd_context(self, tmp_path):
+        """bash executes in cwd_ctx directory."""
+        from nkd_agents.tools import bash, cwd_ctx
+
+        subdir = tmp_path / "workdir"
+        subdir.mkdir()
+
+        token = cwd_ctx.set(subdir)
+        try:
+            result = await bash("pwd")
+            assert str(subdir) in result
+        finally:
+            cwd_ctx.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_cwd_isolation(self, tmp_path):
+        """cwd_ctx changes don't affect other contexts."""
+        from nkd_agents.tools import cwd_ctx, read_file
+
+        dir1 = tmp_path / "dir1"
+        dir2 = tmp_path / "dir2"
+        dir1.mkdir()
+        dir2.mkdir()
+        (dir1 / "file.txt").write_text("dir1_content")
+        (dir2 / "file.txt").write_text("dir2_content")
+
+        token1 = cwd_ctx.set(dir1)
+        result1 = await read_file("file.txt")
+        cwd_ctx.reset(token1)
+
+        token2 = cwd_ctx.set(dir2)
+        result2 = await read_file("file.txt")
+        cwd_ctx.reset(token2)
+
+        assert result1 == [{"type": "text", "text": "dir1_content"}]
+        assert result2 == [{"type": "text", "text": "dir2_content"}]

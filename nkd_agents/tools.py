@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 # Context variable for Anthropic client - available for any tools that need LLM access.
 client_ctx = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client_ctx")
 
+# Context variable for working directory - tools resolve relative paths against this.
+cwd_ctx = ContextVar[Path]("cwd_ctx", default=Path.cwd())
+
 # Temporary directory for fetch_url cache - cleaned up on process exit
 _fetch_cache_tmpdir = tempfile.TemporaryDirectory(prefix="nkd_fetch_")
 FETCH_CACHE = Path(_fetch_cache_tmpdir.name)
@@ -34,7 +37,8 @@ async def read_file(
     """Read and return the contents of a file at the given path. Only works with files, not directories.
     Supports image (jpg, jpeg, png, gif, webp), PDF, and all text files."""
     try:
-        file_path = Path(path)
+        p = Path(path)
+        file_path = p if p.is_absolute() else cwd_ctx.get() / p
         logger.info(f"\nReading: {GREEN}{file_path}{RESET}\n")
         data = file_path.read_bytes()
         return bytes_to_content(data, media_type)
@@ -67,7 +71,8 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         if old_str == new_str:
             return "Error: old_str and new_str must be different"
 
-        file_path = Path(path)
+        p = Path(path)
+        file_path = p if p.is_absolute() else cwd_ctx.get() / p
 
         if file_path.exists():
             content = file_path.read_text(encoding="utf-8")
@@ -104,6 +109,7 @@ async def bash(command: str) -> str:
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            cwd=cwd_ctx.get(),
         )
         stdout, stderr = await process.communicate()
 
