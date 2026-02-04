@@ -1,9 +1,9 @@
 import asyncio
 import base64
 import logging
-from typing import Any, Awaitable, Callable, Iterable, Literal, Sequence
+from typing import Any, Awaitable, Callable, Iterable, Sequence
 
-from anthropic import AsyncAnthropic, AsyncAnthropicVertex
+from anthropic import AsyncAnthropic, AsyncAnthropicVertex, transform_schema
 from anthropic.types import (
     Base64ImageSourceParam,
     Base64PDFSourceParam,
@@ -22,54 +22,37 @@ from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
 
-MediaType = Literal[
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-    "application/pdf",
-    "text/plain",
-]
-
 
 def user(content: str) -> MessageParam:
     "Take a string and return a full Anthropicuser message."
     return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
-def bytes_to_content(data: bytes, media_type: MediaType) -> Content:
+def output_config(model: type[BaseModel]) -> OutputConfigParam:
+    schema = transform_schema(model.model_json_schema())
+    return {"format": {"type": "json_schema", "schema": schema}}
+
+
+def bytes_to_content(data: bytes, ext: str) -> Content:
     """Convert bytes to Anthropic content blocks based on media type."""
-    if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+    ext = "jpeg" if ext.lower() == "jpg" else ext.lower()
+    if ext in ("jpg", "jpeg", "png", "gif", "webp"):
+        media_type = f"image/{ext}"
+        assert media_type in ("image/jpeg", "image/png", "image/gif", "image/webp")
         base64_data = base64.standard_b64encode(data).decode("utf-8")
         source = Base64ImageSourceParam(
             type="base64", media_type=media_type, data=base64_data
         )
         return {"type": "image", "source": source}
-    elif media_type == "application/pdf":
+    elif ext == "pdf":
         base64_data = base64.standard_b64encode(data).decode("utf-8")
         source = Base64PDFSourceParam(
-            type="base64", media_type=media_type, data=base64_data
+            type="base64", media_type="application/pdf", data=base64_data
         )
         return {"type": "document", "source": source}
     else:
         text = data.decode("utf-8", errors="ignore").strip()
         return {"type": "text", "text": text}
-
-
-def output_config(model: type[BaseModel]) -> OutputConfigParam:
-    def add_additional_properties(obj: Any) -> Any:
-        if isinstance(obj, dict):
-            if obj.get("type") == "object":
-                obj["additionalProperties"] = False
-            for v in obj.values():
-                add_additional_properties(v)
-        elif isinstance(obj, list):
-            for item in obj:
-                add_additional_properties(item)
-        return obj
-
-    schema = add_additional_properties(model.model_json_schema())
-    return {"format": {"type": "json_schema", "schema": schema}}
 
 
 def tool_schema(

@@ -13,7 +13,7 @@ from anthropic.types.tool_result_block_param import Content
 from bs4 import BeautifulSoup
 from markdownify import markdownify
 
-from .anthropic import MediaType, bytes_to_content, llm, user
+from .anthropic import bytes_to_content, llm, user
 from .logging import GREEN, RESET, logging_ctx
 from .utils import display_diff
 
@@ -31,17 +31,15 @@ FETCH_CACHE = Path(_fetch_cache_tmpdir.name)
 
 
 # Anthropic-specific: returns Content format via bytes_to_content
-async def read_file(
-    path: str, media_type: MediaType = "text/plain"
-) -> str | list[Content]:
+async def read_file(path: str) -> str | list[Content]:
     """Read and return the contents of a file at the given path. Only works with files, not directories.
     Supports image (jpg, jpeg, png, gif, webp), PDF, and all text files."""
     try:
         p = Path(path)
         file_path = p if p.is_absolute() else cwd_ctx.get() / p
         logger.info(f"\nReading: {GREEN}{file_path}{RESET}\n")
-        data = file_path.read_bytes()
-        return [bytes_to_content(data, media_type)]
+        bytes, ext = file_path.read_bytes(), file_path.suffix[1:].lower()
+        return [bytes_to_content(bytes, ext)]
     except Exception as e:
         logger.warning(f"Error reading file '{path}': {str(e)}")
         return f"Error reading file '{path}': {str(e)}"
