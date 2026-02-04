@@ -2,7 +2,7 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -31,16 +31,14 @@ async def main():
 
     Demonstrates:
     1. Conversation history with message list persisted across calls
-
-    Pattern: Reuse cached client, pass tools (empty list when no tools).
     """
-    client.set(AsyncAnthropic())
+    client = AsyncAnthropic()
     logger.info("1. Conversation history")
     msgs = [user("I live in Paris")]
-    _ = await llm(msgs, **KWARGS)
+    _ = await llm(client, msgs, **KWARGS)
 
     msgs.append(user("What's the weather?"))
-    response = await llm(msgs, fns=[get_weather], **KWARGS)
+    response = await llm(client, msgs, fns=[get_weather], **KWARGS)
     assert "sunny" in response.lower() and "72" in response.lower()
 
 

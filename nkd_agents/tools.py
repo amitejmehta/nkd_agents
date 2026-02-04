@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import logging
 import re
 import tempfile
@@ -9,86 +8,36 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import httpx
-from anthropic.types import Base64ImageSourceParam, Base64PDFSourceParam
+from anthropic import AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types.tool_result_block_param import Content
 from bs4 import BeautifulSoup
 from markdownify import markdownify
 
-from .anthropic import llm, user
+from .anthropic import MediaType, bytes_to_content, llm, user
 from .logging import GREEN, RESET, logging_ctx
 from .utils import display_diff
 
 logger = logging.getLogger(__name__)
-# Context variable for sandbox directory - when set, all file operations (read_file,
-# edit_file, bash) are restricted to this directory. Only relative paths are
-# allowed when sandbox is active (absolute paths will error). This prevents escaping the sandbox.
-sandbox_ctx = ContextVar[str | None]("sandbox_ctx", default=None)
+
+# Context variable for Anthropic client - available for any tools that need LLM access.
+client_ctx = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client_ctx")
 
 # Temporary directory for fetch_url cache - cleaned up on process exit
 _fetch_cache_tmpdir = tempfile.TemporaryDirectory(prefix="nkd_fetch_")
 FETCH_CACHE = Path(_fetch_cache_tmpdir.name)
 
 
-def resolve_path(path: str) -> Path | str:
-    """Resolve a path respecting sandbox_ctx if set.
-
-    Returns:
-        Path object if path is valid and allowed
-        Error string if path violates sandbox rules
-    """
-    # When sandbox is set, only allow relative paths inside sandbox
-    sandbox_dir = sandbox_ctx.get()
-    if sandbox_dir:
-        if Path(path).is_absolute():
-            return f"Error: Absolute paths not allowed when sandbox is set. Use relative path: {path}"
-        sandbox_path = Path(sandbox_dir).resolve()
-        resolved_path = (sandbox_path / path).resolve()
-        # Prevent escaping sandbox with ../
-        if not str(resolved_path).startswith(str(sandbox_path)):
-            return f"Error: Path escapes sandbox: {path}"
-        return resolved_path
-    else:
-        return Path(path).resolve()
-
-
+# Anthropic-specific: returns Content format via bytes_to_content
 async def read_file(
-    path: str,
-    media_type: Literal[
-        "image/jpeg",
-        "image/png",
-        "image/gif",
-        "image/webp",
-        "application/pdf",
-        "text/plain",
-    ] = "text/plain",
+    path: str, media_type: MediaType = "text/plain"
 ) -> str | list[Content]:
     """Read and return the contents of a file at the given path. Only works with files, not directories.
     Supports image (jpg, jpeg, png, gif, webp), PDF, and all text files."""
     try:
-        resolved_path = resolve_path(path)
-        if isinstance(resolved_path, str):  # Error message
-            return resolved_path
-
-        logger.info(f"\nReading: {GREEN}{resolved_path}{RESET}\n")
-        bytes = resolved_path.read_bytes()
-
-        if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
-            source = Base64ImageSourceParam(
-                type="base64",
-                media_type=media_type,
-                data=base64.standard_b64encode(bytes).decode("utf-8"),
-            )
-            return [{"type": "image", "source": source}]
-        elif media_type == "application/pdf":
-            source = Base64PDFSourceParam(
-                type="base64",
-                media_type="application/pdf",
-                data=base64.standard_b64encode(bytes).decode("utf-8"),
-            )
-            return [{"type": "document", "source": source}]
-        else:
-            text = bytes.decode("utf-8", errors="ignore").strip()
-            return [{"type": "text", "text": text}]
+        file_path = Path(path)
+        logger.info(f"\nReading: {GREEN}{file_path}{RESET}\n")
+        data = file_path.read_bytes()
+        return bytes_to_content(data, media_type)
     except Exception as e:
         logger.warning(f"Error reading file '{path}': {str(e)}")
         return f"Error reading file '{path}': {str(e)}"
@@ -118,12 +67,10 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         if old_str == new_str:
             return "Error: old_str and new_str must be different"
 
-        resolved_path = resolve_path(path)
-        if isinstance(resolved_path, str):  # Error message
-            return resolved_path
+        file_path = Path(path)
 
-        if resolved_path.exists():
-            content = resolved_path.read_text(encoding="utf-8")
+        if file_path.exists():
+            content = file_path.read_text(encoding="utf-8")
             if old_str != "" and old_str not in content:
                 return "Error: old_str not found in file content"
             edited_content = content.replace(old_str, new_str, count)
@@ -132,10 +79,10 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
                 return f"Error: File '{path}' not found"
             content, edited_content = "", new_str
 
-        display_diff(content, edited_content, str(resolved_path))
-        resolved_path.parent.mkdir(parents=True, exist_ok=True)
-        resolved_path.write_text(edited_content, encoding="utf-8")
-        return f"Success: Updated {resolved_path}"
+        display_diff(content, edited_content, str(file_path))
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(edited_content, encoding="utf-8")
+        return f"Success: Updated {file_path}"
     except Exception as e:
         logger.warning(f"Error editing file '{path}': {str(e)}")
         return f"Error editing file '{path}': {str(e)}"
@@ -151,14 +98,12 @@ async def bash(command: str) -> str:
     logger.info(f"Executing Bash: {GREEN}{command}{RESET}")
     process = None
     try:
-        sandbox_dir = sandbox_ctx.get()
         process = await asyncio.create_subprocess_exec(
             "bash",
             "-c",
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=Path(sandbox_dir) if sandbox_dir else Path.cwd(),
         )
         stdout, stderr = await process.communicate()
 
@@ -231,6 +176,7 @@ async def fetch_url(url: str) -> str:
         return f"Error fetching '{url}': {str(e)}"
 
 
+# Anthropic-specific: uses anthropic.llm function for sub-agent loop
 async def subtask(
     prompt: str, task_label: str, model: Literal["haiku", "sonnet"]
 ) -> str:
@@ -250,11 +196,12 @@ async def subtask(
     Returns:
         Response from the sub-agent
     """
+    client = client_ctx.get()  # Fail fast if not set
     try:
         logging_ctx.set({"subtask": task_label})
-        tools = [read_file, edit_file, bash, fetch_url]
-        kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 20000}
-        response = await llm([user(prompt)], fns=tools, **kwargs)
+        fns = [read_file, edit_file, bash, fetch_url]
+        kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 8192}
+        response = await llm(client, [user(prompt)], fns=fns, **kwargs)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
         return f"subtask '{task_label}' complete: {response}"
     except Exception as e:

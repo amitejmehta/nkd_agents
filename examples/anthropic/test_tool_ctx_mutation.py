@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -41,16 +41,14 @@ async def main():
     Key lesson: Context variables store references, not copies. When you set a mutable
     object (like a dataclass with frozen=False), tools can mutate it in-place and
     mutations remain visible after llm() returns.
-
-    Pattern: Set context var, call llm() with tools. Reuse cached client.
     """
-    client.set(AsyncAnthropic())
+    client = AsyncAnthropic()
     doc = Document(content="The quick brown sloth jumps over the lazy dog")
     logger.info(f"Before: {doc.content}")
 
     document.set(doc)
     prompt = f"Current document: '{doc.content}'\n\nThat animal can't jump! Replace it with 'cat'"
-    await llm([user(prompt)], fns=[edit_string], **KWARGS)
+    await llm(client, [user(prompt)], fns=[edit_string], **KWARGS)
 
     logger.info(f"After: {doc.content}")
 

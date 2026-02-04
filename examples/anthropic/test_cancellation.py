@@ -3,7 +3,7 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from nkd_agents.anthropic import client, llm, user
+from nkd_agents.anthropic import llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -33,13 +33,11 @@ async def main():
     Key lesson: Interrupting an LLM mid-task doesn't break the conversation.
     The framework automatically records "Interrupted" as the tool result, so you can
     cancel long operations and keep chatting—the LLM handles it like any other event.
-
-    Pattern: Reuse cached client, always pass tools list (required).
     """
-    client.set(AsyncAnthropic())
+    client = AsyncAnthropic()
     input = [user("Analyze the sales_data dataset")]
 
-    task = asyncio.create_task(llm(input, [analyze_dataset, add], **KWARGS))
+    task = asyncio.create_task(llm(client, input, [analyze_dataset, add], **KWARGS))
     await tool_running.wait()
     task.cancel()
 
@@ -49,12 +47,12 @@ async def main():
         logger.info("Interrupted")
 
     input.append(user("Never mind. What's 5 + 3?"))
-    response = await llm(input, [analyze_dataset, add], **KWARGS)
+    response = await llm(client, input, [analyze_dataset, add], **KWARGS)
     logger.info(f"Changed mind: {response}")
     assert "8" in response
 
     input.append(user("What happened to that analysis?"))
-    response = await llm(input, [analyze_dataset, add], **KWARGS)
+    response = await llm(client, input, [analyze_dataset, add], **KWARGS)
     logger.info(f"Asked about interruption: {response}")
     assert "interrupt" in response.lower()
 

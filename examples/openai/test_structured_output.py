@@ -3,7 +3,7 @@ import logging
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from nkd_agents.openai import client, llm, user
+from nkd_agents.openai import llm, user
 
 from ..utils import test
 from .config import KWARGS
@@ -40,20 +40,18 @@ async def main():
     Demonstrates:
     1. Structured output with Pydantic model
     2. Tool call with structured output
-
-    Pattern: Use cached  always pass tools list (required).
     """
-    client.set(AsyncOpenAI())
+    client = AsyncOpenAI()
     kwargs = {"text_format": Weather, **KWARGS}
     input = [user("What's the weather in Paris?")]
-    # 1. Structured output: pass empty tools list
+    # 1. Structured output
     logger.info("1. Structured output (no tools)")
-    response = await llm(input, **kwargs)
+    response = await llm(client, input, **kwargs)
     weather = Weather.model_validate_json(response)
 
     # 2. Tool call with structured output
     logger.info("2. Tool call with structured output")
-    response2 = await llm(input, fns=[get_weather], **kwargs)
+    response2 = await llm(client, input, fns=[get_weather], **kwargs)
     weather = Weather.model_validate_json(response2)
     assert weather.temperature == 72
     assert "sunny" in weather.description.lower()

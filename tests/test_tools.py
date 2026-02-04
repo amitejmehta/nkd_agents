@@ -1,455 +1,418 @@
-"""Test sandbox_ctx functionality."""
+"""Comprehensive tests for nkd_agents/tools.py"""
 
 import asyncio
-import tempfile
-from pathlib import Path
+import base64
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nkd_agents.tools import bash, edit_file, read_file, sandbox_ctx
+from nkd_agents.tools import bash, client_ctx, edit_file, read_file, subtask
 
+# ============================================================================
+# read_file tests
+# ============================================================================
 
-@pytest.fixture
-def sandbox_dir():
-    """Create a temporary sandbox directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield tmpdir
 
-
-@pytest.fixture(autouse=True)
-def reset_sandbox():
-    """Ensure sandbox_ctx is reset after each test."""
-    yield
-    sandbox_ctx.set(None)
+@pytest.mark.asyncio
+async def test_read_file_text(tmp_path):
+    """Test reading a plain text file."""
+    file_path = tmp_path / "test.txt"
+    content = "Hello, World!"
+    file_path.write_text(content)
 
+    result = await read_file(str(file_path), "text/plain")
+    # Text files return list with text block
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["type"] == "text"
+    assert result[0]["text"] == content
 
-class TestSandboxBasicBehavior:
-    """Test basic sandbox functionality."""
 
-    @pytest.mark.asyncio
-    async def test_default_no_sandbox(self):
-        """Without sandbox set, operations use cwd."""
-        result = await bash("pwd")
-        assert "STDOUT:" in result
-        assert "EXIT CODE: 0" in result
-
-    @pytest.mark.asyncio
-    async def test_sandbox_relative_paths(self, sandbox_dir):
-        """With sandbox set, relative paths work in sandbox."""
-        sandbox_ctx.set(sandbox_dir)
-
-        # Create file
-        result = await edit_file("test.txt", "", "Hello sandbox!")
-        assert "Success: Updated" in result
-        assert sandbox_dir in result
-
-        # Read file
-        result = await read_file("test.txt")
-        assert isinstance(result, list)
-        assert result[0]["type"] == "text"
-        assert result[0]["text"] == "Hello sandbox!"
-
-        # Bash in sandbox
-        result = await bash("cat test.txt")
-        assert "Hello sandbox!" in result
-
-    @pytest.mark.asyncio
-    async def test_sandbox_resets(self, sandbox_dir):
-        """Sandbox can be set and reset."""
-        # Set sandbox
-        sandbox_ctx.set(sandbox_dir)
-        result = await bash("pwd")
-        assert sandbox_dir in result
-
-        # Reset
-        sandbox_ctx.set(None)
-        result = await bash("pwd")
-        assert sandbox_dir not in result
+@pytest.mark.asyncio
+async def test_read_file_image_jpg(tmp_path):
+    """Test reading a JPG image returns base64 encoded content."""
+    file_path = tmp_path / "test.jpg"
+    image_data = b"\xff\xd8\xff\xe0\x00\x10JFIF"  # Minimal JPEG header
+    file_path.write_bytes(image_data)
 
+    result = await read_file(str(file_path), "image/jpeg")
 
-class TestSandboxSecurity:
-    """Test sandbox security features."""
+    # Should return list with dict containing base64 encoded data
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert result[0]["type"] == "image"
+    assert result[0]["source"]["type"] == "base64"
+    assert result[0]["source"]["media_type"] == "image/jpeg"
+    assert result[0]["source"]["data"] == base64.b64encode(image_data).decode()
 
-    @pytest.mark.asyncio
-    async def test_absolute_paths_rejected(self, sandbox_dir):
-        """Absolute paths are rejected when sandbox is set."""
-        sandbox_ctx.set(sandbox_dir)
 
-        result = await read_file("/etc/passwd")
-        assert "Error: Absolute paths not allowed" in result
-
-        result = await edit_file("/tmp/test.txt", "", "data")
-        assert "Error: Absolute paths not allowed" in result
-
-    @pytest.mark.asyncio
-    async def test_path_traversal_blocked(self, sandbox_dir):
-        """Path traversal attacks (../) that escape sandbox are blocked."""
-        sandbox_ctx.set(sandbox_dir)
-
-        result = await read_file("../../etc/passwd")
-        assert "Error: Path escapes sandbox" in result
-
-        result = await edit_file("../../../tmp/escape.txt", "", "data")
-        assert "Error: Path escapes sandbox" in result
-
-    @pytest.mark.asyncio
-    async def test_path_traversal_within_sandbox_allowed(self, sandbox_dir):
-        """Path traversal (../) within sandbox is allowed."""
-        sandbox_ctx.set(sandbox_dir)
-
-        # Create nested structure
-        await edit_file("subdir/nested.txt", "", "nested")
-        await edit_file("root.txt", "", "root")
-
-        # Use ../ but stay in sandbox
-        result = await read_file("subdir/../root.txt")
-        assert isinstance(result, list)
-        assert result[0]["text"] == "root"
-
-
-class TestSandboxSymlinks:
-    """Test symlink handling in sandbox."""
-
-    @pytest.mark.asyncio
-    async def test_symlink_inside_sandbox_allowed(self, sandbox_dir):
-        """Symlinks pointing inside sandbox are allowed."""
-        sandbox_ctx.set(sandbox_dir)
-        sandbox_path = Path(sandbox_dir)
-
-        # Create real file
-        real_file = sandbox_path / "real.txt"
-        real_file.write_text("real content")
-
-        # Create symlink inside sandbox
-        link = sandbox_path / "link.txt"
-        link.symlink_to("real.txt")
-
-        # Should work
-        result = await read_file("link.txt")
-        assert isinstance(result, list)
-        assert result[0]["text"] == "real content"
-
-    @pytest.mark.asyncio
-    async def test_symlink_outside_sandbox_blocked(self, sandbox_dir):
-        """Symlinks pointing outside sandbox are blocked."""
-        sandbox_ctx.set(sandbox_dir)
-        sandbox_path = Path(sandbox_dir)
-
-        # Create malicious symlink pointing outside
-        link = sandbox_path / "evil.txt"
-        link.symlink_to("/etc/passwd")
-
-        # Should be blocked
-        result = await read_file("evil.txt")
-        assert "Error: Path escapes sandbox" in result
-
-    @pytest.mark.asyncio
-    async def test_symlink_chain_inside_sandbox(self, sandbox_dir):
-        """Chain of symlinks inside sandbox works."""
-        sandbox_ctx.set(sandbox_dir)
-        sandbox_path = Path(sandbox_dir)
-
-        # Create chain: link1 → link2 → real
-        real = sandbox_path / "real.txt"
-        real.write_text("final content")
-
-        link2 = sandbox_path / "link2.txt"
-        link2.symlink_to("real.txt")
-
-        link1 = sandbox_path / "link1.txt"
-        link1.symlink_to("link2.txt")
-
-        # Should follow chain and work
-        result = await read_file("link1.txt")
-        assert isinstance(result, list)
-        assert result[0]["text"] == "final content"
-
-
-class TestPathResolutionEdgeCases:
-    """Test edge cases in path resolution."""
-
-    @pytest.mark.asyncio
-    async def test_dot_paths_in_sandbox(self, sandbox_dir):
-        """Paths with . are handled correctly."""
-        sandbox_ctx.set(sandbox_dir)
-
-        await edit_file("./test.txt", "", "content")
-        result = await read_file("./test.txt")
-        assert isinstance(result, list)
-        assert result[0]["text"] == "content"
-
-    @pytest.mark.asyncio
-    async def test_nested_directories(self, sandbox_dir):
-        """Deep nested paths work."""
-        sandbox_ctx.set(sandbox_dir)
-
-        await edit_file("a/b/c/d/file.txt", "", "deep")
-        result = await read_file("a/b/c/d/file.txt")
-        assert isinstance(result, list)
-        assert result[0]["text"] == "deep"
-
-    @pytest.mark.asyncio
-    async def test_empty_relative_path_components(self, sandbox_dir):
-        """Paths like a//b are normalized."""
-        sandbox_ctx.set(sandbox_dir)
-
-        await edit_file("test.txt", "", "content")
-        # Double slash should normalize to single
-        result = await read_file("./test.txt")
-        assert isinstance(result, list)
-        assert result[0]["text"] == "content"
-
-
-class TestReadFileEdgeCases:
-    """Test read_file error handling."""
-
-    @pytest.mark.asyncio
-    async def test_read_file_nonexistent(self):
-        """read_file returns error for nonexistent file."""
-        result = await read_file("/nonexistent/path/file.txt")
-        assert "Error reading file" in result
-        assert "No such file or directory" in result or "FileNotFoundError" in result
-
-    @pytest.mark.asyncio
-    async def test_read_file_directory(self):
-        """read_file returns error when given directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            result = await read_file(tmpdir)
-            assert "Error reading file" in result
-            assert "Is a directory" in result or "IsADirectoryError" in result
-
-    @pytest.mark.asyncio
-    async def test_read_file_image_png(self):
-        """read_file handles PNG images."""
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-            # Minimal 1x1 PNG
-            png_bytes = bytes(
-                [
-                    0x89,
-                    0x50,
-                    0x4E,
-                    0x47,
-                    0x0D,
-                    0x0A,
-                    0x1A,
-                    0x0A,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x0D,
-                    0x49,
-                    0x48,
-                    0x44,
-                    0x52,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x01,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x01,
-                    0x08,
-                    0x02,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x90,
-                    0x77,
-                    0x53,
-                    0xDE,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x0C,
-                    0x49,
-                    0x44,
-                    0x41,
-                    0x54,
-                    0x08,
-                    0x99,
-                    0x63,
-                    0xF8,
-                    0xCF,
-                    0xC0,
-                    0x00,
-                    0x00,
-                    0x03,
-                    0x01,
-                    0x01,
-                    0x00,
-                    0x18,
-                    0xDD,
-                    0x8D,
-                    0xB4,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x00,
-                    0x49,
-                    0x45,
-                    0x4E,
-                    0x44,
-                    0xAE,
-                    0x42,
-                    0x60,
-                    0x82,
-                ]
-            )
-            f.write(png_bytes)
-            path = f.name
-
-        try:
-            result = await read_file(path, "image/png")
-            assert isinstance(result, list)
-            assert len(result) == 1
-            assert result[0]["type"] == "image"
-            assert result[0]["source"]["type"] == "base64"
-            assert result[0]["source"]["media_type"] == "image/png"
-            assert result[0]["source"]["data"]
-        finally:
-            Path(path).unlink()
-
-    @pytest.mark.asyncio
-    async def test_read_file_image_jpeg(self):
-        """read_file handles JPEG images."""
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-            # Minimal JPEG header
-            f.write(bytes([0xFF, 0xD8, 0xFF, 0xE0]))
-            path = f.name
-
-        try:
-            result = await read_file(path, "image/jpeg")
-            assert isinstance(result, list)
-            assert result[0]["type"] == "image"
-            assert result[0]["source"]["media_type"] == "image/jpeg"
-        finally:
-            Path(path).unlink()
-
-    @pytest.mark.asyncio
-    async def test_read_file_pdf(self):
-        """read_file handles PDF documents."""
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-            # Minimal PDF header
-            f.write(b"%PDF-1.4\n")
-            path = f.name
-
-        try:
-            result = await read_file(path, "application/pdf")
-            assert isinstance(result, list)
-            assert result[0]["type"] == "document"
-            assert result[0]["source"]["type"] == "base64"
-            assert result[0]["source"]["media_type"] == "application/pdf"
-            assert result[0]["source"]["data"]
-        finally:
-            Path(path).unlink()
-
-
-class TestEditFileEdgeCases:
-    """Test edit_file error handling."""
-
-    @pytest.mark.asyncio
-    async def test_edit_file_same_str(self):
-        """edit_file rejects when old_str equals new_str."""
-        result = await edit_file("test.txt", "same", "same")
-        assert "old_str and new_str must be different" in result
-
-    @pytest.mark.asyncio
-    async def test_edit_file_old_str_not_found(self):
-        """edit_file returns error when old_str not in content."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            sandbox_ctx.set(tmpdir)
-            await edit_file("test.txt", "", "original content")
-            result = await edit_file("test.txt", "notfound", "replaced")
-            assert "old_str not found in file content" in result
-
-    @pytest.mark.asyncio
-    async def test_edit_file_create_new(self):
-        """edit_file creates new file when old_str is empty."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            sandbox_ctx.set(tmpdir)
-            result = await edit_file("newfile.txt", "", "initial content")
-            assert "Success: Updated" in result
-            content = await read_file("newfile.txt")
-            assert isinstance(content, list)
-            assert content[0]["text"] == "initial content"
-
-    @pytest.mark.asyncio
-    async def test_edit_file_replace_count(self):
-        """edit_file respects count parameter."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            sandbox_ctx.set(tmpdir)
-            await edit_file("test.txt", "", "foo bar foo bar foo")
-
-            # Replace only first occurrence
-            await edit_file("test.txt", "foo", "baz", count=1)
-            content = await read_file("test.txt")
-            assert isinstance(content, list)
-            assert content[0]["text"] == "baz bar foo bar foo"
-
-            # Replace all
-            await edit_file("test.txt", "foo", "baz", count=-1)
-            content = await read_file("test.txt")
-            assert isinstance(content, list)
-            assert content[0]["text"] == "baz bar baz bar baz"
-
-    @pytest.mark.asyncio
-    async def test_edit_file_create_parent_dirs(self):
-        """edit_file creates parent directories."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            sandbox_ctx.set(tmpdir)
-            result = await edit_file("deep/nested/path/file.txt", "", "content")
-            assert "Success: Updated" in result
-            content = await read_file("deep/nested/path/file.txt")
-            assert isinstance(content, list)
-            assert content[0]["text"] == "content"
-
-    @pytest.mark.asyncio
-    async def test_edit_file_file_not_found_on_edit(self):
-        """edit_file returns error when file doesn't exist and old_str is not empty."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            sandbox_ctx.set(tmpdir)
-            result = await edit_file("nonexistent.txt", "search", "replace")
-            assert "Error: File" in result and "not found" in result
-
-
-class TestBashEdgeCases:
-    """Test bash tool error handling and edge cases."""
-
-    @pytest.mark.asyncio
-    async def test_bash_command_failure(self):
-        """bash returns proper exit code on command failure."""
-        result = await bash("exit 42")
-        assert "EXIT CODE: 42" in result
-
-    @pytest.mark.asyncio
-    async def test_bash_with_stderr(self):
-        """bash captures stderr."""
-        result = await bash("echo 'stdout' && echo 'stderr' >&2")
-        assert "stdout" in result
-        assert "stderr" in result
-        assert "STDERR:" in result
-
-    @pytest.mark.asyncio
-    async def test_bash_in_sandbox_dir(self, sandbox_dir):
-        """bash executes in sandbox directory when set."""
-        sandbox_ctx.set(sandbox_dir)
-        await edit_file("test.txt", "", "sandbox content")
-        result = await bash("cat test.txt")
-        assert "sandbox content" in result
-
-    @pytest.mark.asyncio
-    async def test_bash_cancellation(self, sandbox_dir):
-        """bash handles cancellation gracefully."""
-        sandbox_ctx.set(sandbox_dir)
-
-        # Create a long-running command
-        task = asyncio.create_task(bash("sleep 30"))
+@pytest.mark.asyncio
+async def test_read_file_image_png(tmp_path):
+    """Test reading a PNG image returns base64 encoded content."""
+    file_path = tmp_path / "test.png"
+    image_data = b"\x89PNG\r\n\x1a\n"  # PNG signature
+    file_path.write_bytes(image_data)
+
+    result = await read_file(str(file_path), "image/png")
+
+    assert isinstance(result, list)
+    assert result[0]["source"]["media_type"] == "image/png"
+    assert result[0]["source"]["data"] == base64.b64encode(image_data).decode()
+
+
+@pytest.mark.asyncio
+async def test_read_file_image_gif(tmp_path):
+    """Test reading a GIF image returns base64 encoded content."""
+    file_path = tmp_path / "test.gif"
+    image_data = b"GIF89a"  # GIF signature
+    file_path.write_bytes(image_data)
+
+    result = await read_file(str(file_path), "image/gif")
+
+    assert isinstance(result, list)
+    assert result[0]["source"]["media_type"] == "image/gif"
+    assert result[0]["source"]["data"] == base64.b64encode(image_data).decode()
+
+
+@pytest.mark.asyncio
+async def test_read_file_image_webp(tmp_path):
+    """Test reading a WEBP image returns base64 encoded content."""
+    file_path = tmp_path / "test.webp"
+    image_data = b"RIFF\x00\x00\x00\x00WEBP"  # WEBP signature
+    file_path.write_bytes(image_data)
+
+    result = await read_file(str(file_path), "image/webp")
+
+    assert isinstance(result, list)
+    assert result[0]["source"]["media_type"] == "image/webp"
+    assert result[0]["source"]["data"] == base64.b64encode(image_data).decode()
+
+
+@pytest.mark.asyncio
+async def test_read_file_pdf(tmp_path):
+    """Test reading a PDF returns base64 encoded content."""
+    file_path = tmp_path / "test.pdf"
+    pdf_data = b"%PDF-1.4"  # PDF signature
+    file_path.write_bytes(pdf_data)
+
+    result = await read_file(str(file_path), "application/pdf")
+
+    assert isinstance(result, list)
+    assert result[0]["type"] == "document"
+    assert result[0]["source"]["type"] == "base64"
+    assert result[0]["source"]["media_type"] == "application/pdf"
+    assert result[0]["source"]["data"] == base64.b64encode(pdf_data).decode()
+
+
+@pytest.mark.asyncio
+async def test_read_file_not_found():
+    """Test reading a non-existent file returns error message."""
+    result = await read_file("/nonexistent/file.txt", "text/plain")
+
+    assert isinstance(result, str)
+    assert "Error reading file" in result
+    assert "/nonexistent/file.txt" in result
+
+
+@pytest.mark.asyncio
+async def test_read_file_directory(tmp_path):
+    """Test reading a directory returns error message."""
+    dir_path = tmp_path / "testdir"
+    dir_path.mkdir()
+
+    result = await read_file(str(dir_path), "text/plain")
+
+    assert isinstance(result, str)
+    assert "Error reading file" in result
+
+
+# ============================================================================
+# edit_file tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_edit_file_create_new(tmp_path):
+    """Test creating a new file with old_str=''."""
+    file_path = tmp_path / "new_file.txt"
+    content = "New file content"
+
+    result = await edit_file(str(file_path), "", content)
+
+    assert result == f"Success: Updated {file_path}"
+    assert file_path.read_text() == content
+
+
+@pytest.mark.asyncio
+async def test_edit_file_create_nested_dirs(tmp_path):
+    """Test creating a file in nested directories that don't exist."""
+    file_path = tmp_path / "a" / "b" / "c" / "file.txt"
+    content = "Nested file"
+
+    result = await edit_file(str(file_path), "", content)
+
+    assert result == f"Success: Updated {file_path}"
+    assert file_path.read_text() == content
+    assert file_path.parent.exists()
+
+
+@pytest.mark.asyncio
+async def test_edit_file_single_replacement(tmp_path):
+    """Test replacing single occurrence (default count=1)."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("foo bar foo bar")
+
+    result = await edit_file(str(file_path), "foo", "baz", count=1)
+
+    assert result == f"Success: Updated {file_path}"
+    assert file_path.read_text() == "baz bar foo bar"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_multiple_replacements(tmp_path):
+    """Test replacing all occurrences with count=-1."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("foo bar foo bar foo")
+
+    result = await edit_file(str(file_path), "foo", "baz", count=-1)
+
+    assert result == f"Success: Updated {file_path}"
+    assert file_path.read_text() == "baz bar baz bar baz"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_old_str_not_found(tmp_path):
+    """Test error when old_str is not in file content."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("existing content")
+
+    result = await edit_file(str(file_path), "nonexistent", "new")
+
+    assert result == "Error: old_str not found in file content"
+    assert file_path.read_text() == "existing content"  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_edit_file_same_strings():
+    """Test error when old_str equals new_str."""
+    result = await edit_file("/any/path", "same", "same")
+
+    assert result == "Error: old_str and new_str must be different"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_not_found():
+    """Test error when file doesn't exist and old_str is not empty."""
+    result = await edit_file("/nonexistent/file.txt", "old", "new")
+
+    assert result == "Error: File '/nonexistent/file.txt' not found"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_multiple_sequential_edits(tmp_path):
+    """Test multiple edits to same file work correctly."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("one two three")
+
+    result1 = await edit_file(str(file_path), "one", "1")
+    result2 = await edit_file(str(file_path), "two", "2")
+    result3 = await edit_file(str(file_path), "three", "3")
+
+    assert "Success" in result1
+    assert "Success" in result2
+    assert "Success" in result3
+    assert file_path.read_text() == "1 2 3"
+
+
+@pytest.mark.asyncio
+async def test_edit_file_generic_exception(tmp_path):
+    """Test that unexpected exceptions are caught and returned as error messages."""
+    # Create a file and then make it unreadable by patching read_text
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("original")
+
+    with patch("pathlib.Path.read_text", side_effect=PermissionError("Access denied")):
+        result = await edit_file(str(file_path), "old", "new")
+
+        assert "Error editing file" in result
+        assert "Access denied" in result
+
+
+# ============================================================================
+# bash tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_bash_success():
+    """Test successful command execution with stdout."""
+    result = await bash("echo 'Hello'")
+
+    assert "STDOUT:" in result
+    assert "Hello" in result
+    assert "STDERR:" in result
+    assert "EXIT CODE: 0" in result
+
+
+@pytest.mark.asyncio
+async def test_bash_failure():
+    """Test failed command with non-zero exit code."""
+    result = await bash("exit 42")
+
+    assert "EXIT CODE: 42" in result
+
+
+@pytest.mark.asyncio
+async def test_bash_stderr():
+    """Test command that writes to stderr."""
+    result = await bash("echo 'error message' >&2")
+
+    assert "STDERR:" in result
+    assert "error message" in result
+    assert "EXIT CODE: 0" in result
+
+
+@pytest.mark.asyncio
+async def test_bash_both_stdout_stderr():
+    """Test command with both stdout and stderr output."""
+    result = await bash("echo 'out'; echo 'err' >&2")
+
+    assert "STDOUT:" in result
+    assert "out" in result
+    assert "STDERR:" in result
+    assert "err" in result
+
+
+@pytest.mark.asyncio
+async def test_bash_command_not_found():
+    """Test invalid command returns error in stderr."""
+    result = await bash("nonexistentcommand12345")
+
+    assert "STDERR:" in result
+    assert "EXIT CODE:" in result
+    # Should have non-zero exit code
+    assert "EXIT CODE: 0" not in result
+
+
+@pytest.mark.asyncio
+async def test_bash_multiline_output():
+    """Test command with multiline output."""
+    result = await bash("printf 'line1\\nline2\\nline3'")
+
+    assert "STDOUT:" in result
+    assert "line1" in result
+    assert "line2" in result
+    assert "line3" in result
+
+
+@pytest.mark.asyncio
+async def test_bash_cancellation():
+    """Test that bash handles cancellation properly."""
+
+    async def run_and_cancel():
+        task = asyncio.create_task(bash("sleep 10"))
         await asyncio.sleep(0.1)  # Let it start
         task.cancel()
-
         try:
             await task
-            assert False, "Should have been cancelled"
         except asyncio.CancelledError:
-            pass  # Expected
+            return "cancelled"
+        return "not cancelled"
+
+    result = await run_and_cancel()
+    assert result == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_bash_generic_exception():
+    """Test bash handles unexpected exceptions."""
+    # Mock create_subprocess_exec to raise an unexpected exception
+    with patch("asyncio.create_subprocess_exec", side_effect=OSError("Exec failed")):
+        result = await bash("echo test")
+
+        assert "Error executing bash command:" in result
+        assert "Exec failed" in result
+
+
+# ============================================================================
+# subtask tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_subtask_no_client():
+    """Test subtask fails when client not set."""
+    # Context vars have function scope by default, we need to test the actual subtask call
+    # When client_ctx.get() is called without being set, it raises LookupError
+    # We need to ensure no client is set in the context
+    with patch("nkd_agents.tools.client_ctx") as mock_ctx:
+        mock_ctx.get.side_effect = LookupError("No client set")
+
+        with pytest.raises(LookupError):
+            await subtask("test", "task", model="haiku")
+
+
+@pytest.mark.asyncio
+async def test_subtask_with_client():
+    """Test subtask executes when client is set."""
+    mock_client = MagicMock()
+
+    # Mock the llm function to return a simple response
+    with patch("nkd_agents.tools.llm", new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = "Task completed successfully"
+
+        token = client_ctx.set(mock_client)
+        try:
+            result = await subtask(
+                prompt="Test prompt", task_label="test task", model="haiku"
+            )
+
+            assert "subtask 'test task' complete" in result
+            assert "Task completed successfully" in result
+
+            # Verify llm was called with correct parameters
+            mock_llm.assert_called_once()
+            call_args = mock_llm.call_args
+            assert call_args.kwargs["model"] == "claude-haiku-4-5"
+            assert call_args.kwargs["max_tokens"] == 8192
+        finally:
+            client_ctx.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_subtask_model_parameter():
+    """Test subtask uses correct model based on parameter."""
+    mock_client = MagicMock()
+
+    with patch("nkd_agents.tools.llm", new_callable=AsyncMock) as mock_llm:
+        mock_llm.return_value = "Done"
+
+        token = client_ctx.set(mock_client)
+        try:
+            # Test sonnet
+            await subtask("prompt", "task", model="sonnet")
+            assert mock_llm.call_args.kwargs["model"] == "claude-sonnet-4-5"
+
+            # Test haiku
+            await subtask("prompt", "task", model="haiku")
+            assert mock_llm.call_args.kwargs["model"] == "claude-haiku-4-5"
+        finally:
+            client_ctx.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_subtask_exception_handling():
+    """Test subtask handles exceptions from llm and returns error message."""
+    mock_client = MagicMock()
+
+    with patch("nkd_agents.tools.llm", new_callable=AsyncMock) as mock_llm:
+        mock_llm.side_effect = Exception("LLM failed")
+
+        token = client_ctx.set(mock_client)
+        try:
+            result = await subtask("prompt", "my_task", model="haiku")
+
+            assert "Error executing subtask 'my_task':" in result
+            assert "LLM failed" in result
+        finally:
+            client_ctx.reset(token)

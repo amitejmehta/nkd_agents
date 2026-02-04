@@ -3,7 +3,7 @@ import logging
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel
 
-from nkd_agents.anthropic import client, llm, output_config, user
+from nkd_agents.anthropic import llm, output_config, user
 
 from ..utils import test
 from .config import KWARGS
@@ -40,21 +40,19 @@ async def main():
     Demonstrates:
     1. Structured output with Pydantic model
     2. Tool call with structured output
-
-    Pattern: Reuse cached client, pass tools (empty list when no tools).
     """
-    client.set(AsyncAnthropic())
+    client = AsyncAnthropic()
     prompt = "What's the weather in Paris?"
     kwargs = {**KWARGS, "output_config": output_config(Weather)}
 
     # 1. Structured output
     logger.info("1. Structured output")
-    response = await llm([user(prompt)], **kwargs)
+    response = await llm(client, [user(prompt)], **kwargs)
     weather = Weather.model_validate_json(response)
 
     # 2. Tool call with structured output
     logger.info("2. Tool call with structured output")
-    response2 = await llm([user(prompt)], fns=[get_weather], **kwargs)
+    response2 = await llm(client, [user(prompt)], fns=[get_weather], **kwargs)
     weather = Weather.model_validate_json(response2)
     assert weather.temperature == 72
     assert "sunny" in weather.description.lower()

@@ -8,10 +8,9 @@ from anthropic.types import MessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
-from . import anthropic
 from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
-from .tools import bash, edit_file, fetch_url, read_file, subtask
+from .tools import bash, client_ctx, edit_file, fetch_url, read_file, subtask
 from .utils import load_env
 
 configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
@@ -38,15 +37,17 @@ def ensure_api_key() -> None:
 
 
 ensure_api_key()
-anthropic.client.set(AsyncAnthropic())
+client = AsyncAnthropic()
+client_ctx.set(client)  # Make client available to tools
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 # mutable state
 model_idx = 1
 model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
 fns = [read_file, edit_file, bash, subtask, fetch_url]
-msgs: list[MessageParam] = []
+input: list[MessageParam] = []
 q: asyncio.Queue[MessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
+plan_mode = False
 starting_phrase = "Be brief and exacting."
 if Path("CLAUDE.md").exists():  # fetches file from cwd at runtime
     model_settings["system"] = Path("CLAUDE.md").read_text(encoding="utf-8")
@@ -56,8 +57,8 @@ async def llm_loop() -> None:
     """Run agentic loop for each msg in queue. A run is cancelled when the user interrupts."""
     global llm_task
     while True:
-        msgs.append(await q.get())  # q.get hangs here forever until msg added to queue
-        llm_task = asyncio.create_task(llm(msgs, fns=fns, **model_settings))
+        input.append(await q.get())  # q.get hangs here forever until msg added to queue
+        llm_task = asyncio.create_task(llm(client, input, fns, **model_settings))
 
 
 async def user_input() -> None:
@@ -70,12 +71,6 @@ async def user_input() -> None:
         model_idx = (model_idx + 1) % len(MODELS)
         model_settings["model"] = MODELS[model_idx]
         logger.info(f"{DIM}Switched to {GREEN}{model_settings['model']}{RESET}")
-
-    @kb.add("c-k")
-    def clear_history(event: KeyPressEvent) -> None:
-        length = len(msgs)
-        msgs.clear()
-        logger.info(f"{DIM}Cleared {length} msgs{RESET}")
 
     @kb.add("escape", "escape")
     def interrupt(event: KeyPressEvent) -> None:
@@ -94,13 +89,9 @@ async def user_input() -> None:
 
     @kb.add("s-tab")
     def toggle_plan_mode(event: KeyPressEvent) -> None:
-        global fns
-        plan_mode = edit_file not in fns and bash not in fns
-        if plan_mode:
-            fns = [read_file, edit_file, bash, subtask, fetch_url]
-        else:
-            fns = [read_file, fetch_url]
-        logger.info(f"{DIM}Plan mode: {'✓' if not plan_mode else '✗'}{RESET}")
+        global plan_mode
+        plan_mode = not plan_mode
+        logger.info(f"{DIM}Plan mode: {'✓' if plan_mode else '✗'}{RESET}")
 
     style = styles.Style.from_dict({"": "ansibrightblack"})
     session = PromptSession(key_bindings=kb, style=style)
@@ -108,7 +99,8 @@ async def user_input() -> None:
     while True:
         text: str = await session.prompt_async("> ")
         if text and text.strip():
-            await q.put(user(f"{starting_phrase} {text.strip()}"))
+            prefix = "PLAN MODE - READ ONLY. " if plan_mode else ""
+            await q.put(user(f"{prefix}{starting_phrase} {text.strip()}"))
 
 
 async def main_async() -> None:
@@ -119,7 +111,6 @@ async def main_async() -> None:
         "'shift+tab': toggle plan mode\n"
         "'esc esc':   interrupt\n"
         "'ctrl+u':    clear input\n"
-        "'ctrl+k':    clear history\n"
         "'ctrl+l':    next model\n"
         f"'ctrl+c':    exit{RESET}\n",
     )
@@ -129,7 +120,7 @@ async def main_async() -> None:
         await user_input()
 
     except (KeyboardInterrupt, EOFError):
-        logger.info(f"{DIM}Exiting...{RESET}")
+        logger.info(f"{DIM}Exiting... ({len(input)} messages){RESET}")
 
 
 def main() -> None:

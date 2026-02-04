@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from contextvars import ContextVar
 from typing import Any, Awaitable, Callable, Sequence
 
 from openai import AsyncOpenAI
@@ -17,7 +16,6 @@ from openai.types.responses.response_input_item_param import FunctionCallOutput
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
-client = ContextVar[AsyncOpenAI]("client")
 
 
 def user(content: str) -> ResponseInputItemParam:
@@ -95,16 +93,17 @@ def format_tool_results(
 
 
 async def llm(
+    client: AsyncOpenAI,
     input: list[ResponseInputItemParam],
     fns: Sequence[
         Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]]
     ] = (),
-    client_override: AsyncOpenAI | None = None,
     **kwargs: Any,
 ) -> str:
     """Run GPT in agentic loop (run until no tool calls, then return text).
 
     Args:
+        client: OpenAI client instance
         input: List of messages forming the conversation history
         fns: Optional list of async tool functions
         **kwargs: API parameters (model, temperature, reasoning, etc.)
@@ -113,12 +112,11 @@ async def llm(
     - Tools should handle their own errors and return descriptive, concise error strings.
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     """
-    c = client_override or client.get()
     tool_dict = {fn.__name__: fn for fn in fns}
     kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        resp = await c.responses.parse(input=input, **kwargs)
+        resp = await client.responses.parse(input=input, **kwargs)
         logger.info(f"usage={resp.usage}")
 
         text, tool_calls = extract_text_and_tool_calls(resp)

@@ -38,8 +38,7 @@ Supporting Files:
 │   │   └── test_structured_output.py - Pydantic model output formatting
 │   └── utils.py        # Shared example utilities
 └── tests/
-    ├── test_sandbox.py - Sandbox security and path resolution tests
-    └── test_extract_function_params.py - Function parameter extraction and JSON schema generation tests
+    └── test_utils.py - Function parameter extraction and utility tests
 ```
 
 ## Running Examples & Tests

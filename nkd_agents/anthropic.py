@@ -1,10 +1,12 @@
 import asyncio
+import base64
 import logging
-from contextvars import ContextVar
-from typing import Any, Awaitable, Callable, Iterable, Sequence
+from typing import Any, Awaitable, Callable, Iterable, Literal, Sequence
 
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types import (
+    Base64ImageSourceParam,
+    Base64PDFSourceParam,
     Message,
     MessageParam,
     OutputConfigParam,
@@ -19,12 +21,39 @@ from pydantic import BaseModel
 from .utils import extract_function_params
 
 logger = logging.getLogger(__name__)
-client = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client")
+
+MediaType = Literal[
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "application/pdf",
+    "text/plain",
+]
 
 
 def user(content: str) -> MessageParam:
     "Take a string and return a full Anthropicuser message."
     return {"role": "user", "content": [{"type": "text", "text": content}]}
+
+
+def bytes_to_content(data: bytes, media_type: MediaType) -> list[Content]:
+    """Convert bytes to Anthropic content blocks based on media type."""
+    if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+        base64_data = base64.standard_b64encode(data).decode("utf-8")
+        source = Base64ImageSourceParam(
+            type="base64", media_type=media_type, data=base64_data
+        )
+        return [{"type": "image", "source": source}]
+    elif media_type == "application/pdf":
+        base64_data = base64.standard_b64encode(data).decode("utf-8")
+        source = Base64PDFSourceParam(
+            type="base64", media_type=media_type, data=base64_data
+        )
+        return [{"type": "document", "source": source}]
+    else:
+        text = data.decode("utf-8", errors="ignore").strip()
+        return [{"type": "text", "text": text}]
 
 
 def output_config(model: type[BaseModel]) -> OutputConfigParam:
@@ -110,14 +139,15 @@ def format_tool_results(
 
 
 async def llm(
+    client: AsyncAnthropic | AsyncAnthropicVertex,
     input: list[MessageParam],
     fns: Sequence[Callable[..., Awaitable[str | Iterable[Content]]]] = (),
-    client_override: AsyncAnthropic | AsyncAnthropicVertex | None = None,
     **kwargs: Any,
 ) -> str:
     """Run Claude in agentic loop (run until no tool calls, then return text).
 
     Args:
+        client: Anthropic client instance
         input: List of messages forming the conversation history
         fns: Optional list of async tool functions
         **kwargs: API parameters (model, max_tokens, system, temperature, etc.)
@@ -127,7 +157,6 @@ async def llm(
     - When cancelled, the loop will return "Interrupted" as the result for any cancelled tool calls.
     - Uses anthropic ephemeral (5min) prompt caching by always setting breakpoint at last message.
     """
-    c = client_override or client.get()
     tool_dict = {fn.__name__: fn for fn in fns}
     kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
@@ -135,7 +164,7 @@ async def llm(
         if fns:
             input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        resp: Message = await c.messages.create(messages=input, **kwargs)
+        resp: Message = await client.messages.create(messages=input, **kwargs)
         logger.info(f"stop_reason={resp.stop_reason}\nusage={resp.usage}")
 
         if fns:
