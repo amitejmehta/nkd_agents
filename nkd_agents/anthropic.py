@@ -37,23 +37,23 @@ def user(content: str) -> MessageParam:
     return {"role": "user", "content": [{"type": "text", "text": content}]}
 
 
-def bytes_to_content(data: bytes, media_type: MediaType) -> list[Content]:
+def bytes_to_content(data: bytes, media_type: MediaType) -> Content:
     """Convert bytes to Anthropic content blocks based on media type."""
     if media_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
         base64_data = base64.standard_b64encode(data).decode("utf-8")
         source = Base64ImageSourceParam(
             type="base64", media_type=media_type, data=base64_data
         )
-        return [{"type": "image", "source": source}]
+        return {"type": "image", "source": source}
     elif media_type == "application/pdf":
         base64_data = base64.standard_b64encode(data).decode("utf-8")
         source = Base64PDFSourceParam(
             type="base64", media_type=media_type, data=base64_data
         )
-        return [{"type": "document", "source": source}]
+        return {"type": "document", "source": source}
     else:
         text = data.decode("utf-8", errors="ignore").strip()
-        return [{"type": "text", "text": text}]
+        return {"type": "text", "text": text}
 
 
 def output_config(model: type[BaseModel]) -> OutputConfigParam:

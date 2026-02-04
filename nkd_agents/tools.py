@@ -41,7 +41,7 @@ async def read_file(
         file_path = p if p.is_absolute() else cwd_ctx.get() / p
         logger.info(f"\nReading: {GREEN}{file_path}{RESET}\n")
         data = file_path.read_bytes()
-        return bytes_to_content(data, media_type)
+        return [bytes_to_content(data, media_type)]
     except Exception as e:
         logger.warning(f"Error reading file '{path}': {str(e)}")
         return f"Error reading file '{path}': {str(e)}"
