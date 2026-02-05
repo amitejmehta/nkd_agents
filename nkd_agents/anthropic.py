@@ -55,9 +55,7 @@ def bytes_to_content(data: bytes, ext: str) -> Content:
         return {"type": "text", "text": text}
 
 
-def tool_schema(
-    func: Callable[..., Awaitable[Any]],
-) -> ToolParam:
+def tool_schema(func: Callable[..., Awaitable[str | Iterable[Content]]]) -> ToolParam:
     """Convert a function to Anthropic's tool JSON schema."""
     if not func.__doc__:
         raise ValueError(f"Function {func.__name__} must have a docstring")
@@ -77,9 +75,7 @@ def tool_schema(
     )
 
 
-def extract_text_and_tool_calls(
-    response: Message,
-) -> tuple[str, list[ToolUseBlock]]:
+def extract_text_and_tool_calls(response: Message) -> tuple[str, list[ToolUseBlock]]:
     """Extract text and tool calls from an Anthropic message."""
     text, tool_calls = "", []
 
@@ -106,8 +102,7 @@ async def tool(
 
 
 def format_tool_results(
-    tool_calls: list[ToolUseBlock],
-    results: list[str | Iterable[Content]],
+    tool_calls: list[ToolUseBlock], results: list[str | Iterable[Content]]
 ) -> list[MessageParam]:
     """Format tool results into messages to append to conversation.
 

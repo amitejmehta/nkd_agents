@@ -23,7 +23,9 @@ def user(content: str) -> ResponseInputItemParam:
     return {"role": "user", "content": [{"type": "input_text", "text": content}]}
 
 
-def tool_schema(func: Callable[..., Awaitable[Any]]) -> FunctionToolParam:
+def tool_schema(
+    func: Callable[..., Awaitable[str | ResponseFunctionCallOutputItemListParam]],
+) -> FunctionToolParam:
     """Convert a function to OpenAI's tool JSON schema"""
     if not func.__doc__:
         raise ValueError(f"Function {func.__name__} must have a docstring")
