@@ -1,6 +1,6 @@
-# nkd_agents
+# nkd-agents
 
-`nkd_agents` is an LLM/Agent framework built upon two tenets:
+`nkd-agents` is an LLM/Agent framework built upon two tenets:
 1. **Strip abstractions** - In implementation, an agent is just LLM + Loop + Tools. The loop: call LLM → if tool calls, execute tools → repeat. If no tool calls, return text.
 
 2. **Elegance through simplicity** - You need far less than you think to build bespoke production-grade AI agents for your use-case.
@@ -13,40 +13,49 @@ The best way to get acquainted is to check out our examples! [`examples/anthropi
 **Package** (build AI agents programmatically with Anthropic/OpenAI):
 
 ```bash
-uv pip install nkd_agents  # or: pip install nkd_agents
+uv pip install nkd-agents  # or: pip install nkd-agents
 ```
 
 **CLI** (Claude Code-style coding assistant in Python):
 
 via `uv tool` (or `pipx`)
 ```bash
-uv tool install nkd_agents[cli]  # or: pipx install nkd_agents[cli]
-# Makes `nkd_agents` CLI command globally available. Package not in venvs; venv installs of package will take precedence.
+uv tool install nkd-agents[cli,web]  # or: pipx install nkd-agents[cli,web]
 
-# Configure and launch (saves key to ~/.nkd_agents/.env)
-NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY nkd_agents
+# Configure (one-time)
+mkdir -p ~/.nkd-agents
+echo "NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > ~/.nkd-agents/.env
 
-# Subsequent launches
-nkd_agents
+# Launch
+nkd
 ```
+
+> **Minimal install** (no web tools): `uv tool install nkd-agents[cli]`
 
 via Docker (sandboxed: can only edit files you mount, restricts system access)
 ```bash
-docker build -t nkd_agents https://github.com/amitejmehta/nkd_agents.git
+docker build -t nkd-agents https://github.com/amitejmehta/nkd-agents.git
 
-# Configure and launch: creates and mounts ~/.nkd_agents (along with cwd)
-docker run -it -e NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY -v ~/.nkd_agents:/home/agent/.nkd_agents -v $(pwd):/workspace nkd_agents
+# Configure (one-time)
+mkdir -p ~/.nkd-agents
+echo "NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > ~/.nkd-agents/.env
 
-# Subsequent launches
-docker run -it -v ~/.nkd_agents:/home/agent/.nkd_agents -v $(pwd):/workspace nkd_agents
+# Add alias to your shell config (~/.bashrc, ~/.zshrc, etc.)
+alias nkd-sandbox='docker run -it --env-file ~/.nkd-agents/.env -v $(pwd):/workspace nkd-agents'
+source ~/.zshrc  # or ~/.bashrc
+
+# Launch
+nkd-sandbox  # or just: nkd
 ```
+
+> **Note:** Docker includes web tools (`web_search`, `fetch_url`) using Microsoft's Playwright image (~1.5GB).
 
 ## Contributing
 
 ```bash
-git clone https://github.com/amitejmehta/nkd_agents.git
-cd nkd_agents
-uv pip install -e '.[dev,cli]'
+git clone https://github.com/amitejmehta/nkd-agents.git
+cd nkd-agents
+uv pip install -e '.[dev,cli,web]'
 git checkout -b feat/your-feature
 # make changes
 pytest

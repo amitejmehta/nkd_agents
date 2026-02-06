@@ -10,45 +10,33 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from .anthropic import llm, user
 from .logging import DIM, GREEN, RED, RESET, configure_logging
-from .tools import bash, client_ctx, edit_file, fetch_url, read_file, subtask
+from .tools import bash, client_ctx, edit_file, read_file, subtask
 from .utils import load_env
 
-configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
 logger = logging.getLogger(__name__)
 
-
-def ensure_api_key() -> None:
-    """Ensure ANTHROPIC_API_KEY is available. Save to config if in environ."""
-    config_dir = Path.home() / ".nkd_agents"
-    config_file = config_dir / ".env"
-
-    if key := os.environ.get("NKD_AGENTS_ANTHROPIC_API_KEY"):
-        config_dir.mkdir(exist_ok=True)
-        config_file.write_text(f"NKD_AGENTS_ANTHROPIC_API_KEY={key}\n")
-    else:
-        load_env(config_file.as_posix())
-
-    if key := os.environ.get("NKD_AGENTS_ANTHROPIC_API_KEY"):
-        os.environ["ANTHROPIC_API_KEY"] = key
-    else:
-        raise ValueError(
-            "ANTHROPIC_API_KEY not found.\nSet once via: NKD_AGENTS_ANTHROPIC_API_KEY=sk-... nkd_agents"
-        )
-
-
-ensure_api_key()
-client = AsyncAnthropic()
-client_ctx.set(client)  # Make client available to tools
+# config
+configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
+load_env((Path.home() / ".nkd-agents" / ".env").as_posix())
+client = AsyncAnthropic(api_key=os.environ["NKD_AGENTS_ANTHROPIC_API_KEY"])
+client_ctx.set(client)  # make client available to tools (like subtask)
+starting_phrase = "Be brief and exacting."  # prefixed to every user message
+
+try:
+    from .web import fetch_url, web_search
+
+    fns = [read_file, edit_file, bash, subtask, fetch_url, web_search]
+except ImportError:
+    fns = [read_file, edit_file, bash, subtask]
+
 # mutable state
-model_idx = 1
-model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
-fns = [read_file, edit_file, bash, subtask, fetch_url]
 input: list[MessageParam] = []
 q: asyncio.Queue[MessageParam] = asyncio.Queue()
 llm_task: asyncio.Task | None = None
 plan_mode = False
-starting_phrase = "Be brief and exacting."
+model_idx = 1
+model_settings = {"model": MODELS[model_idx], "max_tokens": 20000, "thinking": omit}
 if Path("CLAUDE.md").exists():  # fetches file from cwd at runtime
     model_settings["system"] = Path("CLAUDE.md").read_text(encoding="utf-8")
 
@@ -99,14 +87,14 @@ async def user_input() -> None:
     while True:
         text: str = await session.prompt_async("> ")
         if text and text.strip():
-            prefix = "PLAN MODE - READ ONLY. " if plan_mode else ""
-            await q.put(user(f"{prefix}{starting_phrase} {text.strip()}"))
+            prefix = "PLAN MODE - READ ONLY. " if plan_mode else "" + starting_phrase
+            await q.put(user(f"{prefix} {text.strip()}"))
 
 
 async def main_async() -> None:
     """Launch user input and LLM loops in parallel."""
     logger.info(
-        f"\n\n{DIM}nkd_agents\n\n"
+        f"\n\n{DIM}nkd-agents\n\n"
         "'tab':       toggle thinking\n"
         "'shift+tab': toggle plan mode\n"
         "'esc esc':   interrupt\n"

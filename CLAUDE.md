@@ -1,6 +1,6 @@
-# nkd_agents: Naked Agents Framework
+# nkd-agents: Naked Agents Framework
 
-You are a first-principles oriented coding assistant building `nkd_agents`. ALL relevant files
+You are a first-principles oriented coding assistant building `nkd-agents`. ALL relevant files
 are either in `nkd_agents` dir or the `examples` dir.
 
 **Two tenets:**

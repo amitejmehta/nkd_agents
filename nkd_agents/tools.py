@@ -1,17 +1,11 @@
 import asyncio
 import logging
-import re
-import tempfile
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlparse
 
-import httpx
 from anthropic import AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types.tool_result_block_param import Content
-from bs4 import BeautifulSoup
-from markdownify import markdownify
 
 from .anthropic import bytes_to_content, llm, user
 from .logging import GREEN, RESET, logging_ctx
@@ -19,15 +13,12 @@ from .utils import display_diff
 
 logger = logging.getLogger(__name__)
 
-# Context variable for Anthropic client - available for any tools that need LLM access.
+"""Context variables for tools.
+client_ctx: anthropic client for tools that need LLM access
+cwd_ctx: working directory for tools that need to resolve relative paths
+"""
 client_ctx = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client_ctx")
-
-# Context variable for working directory - tools resolve relative paths against this.
 cwd_ctx = ContextVar[Path]("cwd_ctx", default=Path.cwd())
-
-# Temporary directory for fetch_url cache - cleaned up on process exit
-_fetch_cache_tmpdir = tempfile.TemporaryDirectory(prefix="nkd_fetch_")
-FETCH_CACHE = Path(_fetch_cache_tmpdir.name)
 
 
 # Anthropic-specific: returns Content format via bytes_to_content
@@ -124,69 +115,13 @@ async def bash(command: str) -> str:
         return f"Error executing bash command: {str(e)}"
 
 
-def _clean_html(soup: BeautifulSoup) -> None:
-    """Remove unwanted tags from BeautifulSoup object in-place."""
-    for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
-        tag.decompose()
-
-    for pattern in [
-        "menu",
-        "sidebar",
-        "breadcrumb",
-        "search",
-        "cookie",
-        "banner",
-        "dialog",
-    ]:
-        for tag in soup.find_all(class_=re.compile(pattern, re.I)):
-            tag.decompose()
-        for tag in soup.find_all(id=re.compile(pattern, re.I)):
-            tag.decompose()
-
-
-async def fetch_url(url: str) -> str:
-    """Fetch a webpage and convert to clean markdown.
-
-    Args:
-        url: The URL to fetch
-
-    Returns:
-        Markdown content of the page, or error message.
-    """
-    try:
-        logger.info(f"Fetching: {GREEN}{url}{RESET}")
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            html = response.text
-
-        soup = BeautifulSoup(html, "html.parser")
-        markdown = markdownify(str(_clean_html(soup)), heading_style="ATX")
-
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        path_part = parsed.path.strip("/") or "index"
-        slug = re.sub(r"[^\w\-]", "_", path_part)[:200]
-
-        cache_subdir = FETCH_CACHE / domain
-        cache_subdir.mkdir(parents=True, exist_ok=True)
-        cache_path = cache_subdir / f"{slug}.md"
-        cache_path.write_text(markdown, encoding="utf-8")
-
-        logger.info(f"Saved {len(markdown):,} chars to {cache_path}")
-        return f"Fetched {len(markdown):,} chars to {cache_path}. Do not read the full file, use bash grep/head/tail w/ keywords to explore)"
-    except Exception as e:
-        logger.warning(f"Error fetching '{url}': {str(e)}")
-        return f"Error fetching '{url}': {str(e)}"
-
-
 # Anthropic-specific: uses anthropic.llm function for sub-agent loop
 async def subtask(
     prompt: str, task_label: str, model: Literal["haiku", "sonnet"]
 ) -> str:
     """Spawn a sub-agent to work on a specific task autonomously.
 
-    The sub-agent has access to file read/edit and bash execution tools, plus fetch_url tool.
+    The sub-agent has access to the all same tools as you (except `subtask` itself of course).
     Use this for complex, multi-step tasks that benefit from focused attention.
 
     Args:
@@ -203,7 +138,13 @@ async def subtask(
     client = client_ctx.get()  # Fail fast if not set
     try:
         logging_ctx.set({"subtask": task_label})
-        fns = [read_file, edit_file, bash, fetch_url]
+
+        try:
+            from .web import fetch_url, web_search
+
+            fns = [read_file, edit_file, bash, fetch_url, web_search]
+        except ImportError:
+            fns = [read_file, edit_file, bash]
         kwargs = {"model": f"claude-{model}-4-5", "max_tokens": 8192}
         response = await llm(client, [user(prompt)], fns=fns, **kwargs)
         logger.info(f"✓ subtask '{task_label}' complete: {response}\n")
