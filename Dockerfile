@@ -17,7 +17,7 @@ COPY nkd_agents/ /tmp/nkd_agents/
 
 # Install the package using uv with CLI and web dependencies
 WORKDIR /tmp
-RUN uv pip install --system ".[cli,web]"
+RUN uv pip install --system ".[cli]"
 
 # Create workspace directory and switch to non-root user
 RUN mkdir -p /workspace && chown agent:agent /workspace

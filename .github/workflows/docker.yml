@@ -23,7 +23,7 @@ jobs:
         OUTPUT=$(docker run --rm nkd-agents:test 2>&1 || true)
         
         # Success if CLI loads and raises expected API key error
-        if echo "$OUTPUT" | grep -q "ANTHROPIC_API_KEY not found"; then
+        if echo "$OUTPUT" | grep -q "NKD_AGENTS_ANTHROPIC_API_KEY is not set"; then
           echo "✓ Container started and CLI loaded correctly (expected API key error)"
           exit 0
         else

@@ -1,24 +1,16 @@
 import asyncio
 import logging
-from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 
-from anthropic import AsyncAnthropic, AsyncAnthropicVertex
 from anthropic.types.tool_result_block_param import Content
 
 from .anthropic import bytes_to_content, llm, user
+from .ctx import client_ctx, cwd_ctx
 from .logging import GREEN, RESET, logging_ctx
 from .utils import display_diff
 
 logger = logging.getLogger(__name__)
-
-"""Context variables for tools.
-client_ctx: anthropic client for tools that need LLM access
-cwd_ctx: working directory for tools that need to resolve relative paths
-"""
-client_ctx = ContextVar[AsyncAnthropic | AsyncAnthropicVertex]("client_ctx")
-cwd_ctx = ContextVar[Path]("cwd_ctx", default=Path.cwd())
 
 
 # Anthropic-specific: returns Content format via bytes_to_content

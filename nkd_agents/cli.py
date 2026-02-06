@@ -9,26 +9,27 @@ from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from .anthropic import llm, user
+from .ctx import client_ctx
 from .logging import DIM, GREEN, RED, RESET, configure_logging
-from .tools import bash, client_ctx, edit_file, read_file, subtask
+from .tools import bash, edit_file, read_file, subtask
 from .utils import load_env
+from .web import fetch_url, web_search
 
 logger = logging.getLogger(__name__)
-
-# config
 configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
+
+# configuration
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
 load_env((Path.home() / ".nkd-agents" / ".env").as_posix())
+if not os.environ.get("NKD_AGENTS_ANTHROPIC_API_KEY"):
+    raise ValueError(
+        "NKD_AGENTS_ANTHROPIC_API_KEY is not set. "
+        "See https://github.com/amitejmehta/nkd-agents#installation"
+    )
 client = AsyncAnthropic(api_key=os.environ["NKD_AGENTS_ANTHROPIC_API_KEY"])
 client_ctx.set(client)  # make client available to tools (like subtask)
 starting_phrase = "Be brief and exacting."  # prefixed to every user message
-
-try:
-    from .web import fetch_url, web_search
-
-    fns = [read_file, edit_file, bash, subtask, fetch_url, web_search]
-except ImportError:
-    fns = [read_file, edit_file, bash, subtask]
+fns = [read_file, edit_file, bash, subtask, fetch_url, web_search]
 
 # mutable state
 input: list[MessageParam] = []

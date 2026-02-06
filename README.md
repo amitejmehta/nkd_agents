@@ -16,11 +16,11 @@ The best way to get acquainted is to check out our examples! [`examples/anthropi
 uv pip install nkd-agents  # or: pip install nkd-agents
 ```
 
-**CLI** (Claude Code-style coding assistant in Python):
+**CLI** (Claude Code-style coding assistant with web search):
 
 via `uv tool` (or `pipx`)
 ```bash
-uv tool install nkd-agents[cli,web]  # or: pipx install nkd-agents[cli,web]
+uv tool install nkd-agents[cli]  # or: pipx install nkd-agents[cli]
 
 # Configure (one-time)
 mkdir -p ~/.nkd-agents
@@ -30,7 +30,7 @@ echo "NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > ~/.nkd-agents/.env
 nkd
 ```
 
-> **Minimal install** (no web tools): `uv tool install nkd-agents[cli]`
+> **Requirements:** Chrome/Chromium for web search. No Chrome? Use Docker instead (see below).
 
 via Docker (sandboxed: can only edit files you mount, restricts system access)
 ```bash
@@ -41,8 +41,8 @@ mkdir -p ~/.nkd-agents
 echo "NKD_AGENTS_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > ~/.nkd-agents/.env
 
 # Add alias to your shell config (~/.bashrc, ~/.zshrc, etc.)
-alias nkd-sandbox='docker run -it --env-file ~/.nkd-agents/.env -v $(pwd):/workspace nkd-agents'
-source ~/.zshrc  # or ~/.bashrc
+echo "alias nkd-sandbox='docker run -it --env-file ~/.nkd-agents/.env -v \$(pwd):/workspace nkd-agents'" >> ~/.zshrc
+source ~/.zshrc  # or: echo to ~/.bashrc and source that
 
 # Launch
 nkd-sandbox  # or just: nkd
@@ -55,7 +55,7 @@ nkd-sandbox  # or just: nkd
 ```bash
 git clone https://github.com/amitejmehta/nkd-agents.git
 cd nkd-agents
-uv pip install -e '.[dev,cli,web]'
+uv pip install -e '.[dev,cli]'
 git checkout -b feat/your-feature
 # make changes
 pytest
