@@ -82,13 +82,29 @@ async def user_input() -> None:
         plan_mode = not plan_mode
         logger.info(f"{DIM}Plan mode: {'✓' if plan_mode else '✗'}{RESET}")
 
+    @kb.add("c-k")
+    def compact_history(event: KeyPressEvent) -> None:
+        """Remove all tool call/result pairs"""
+        kept = []
+        for x in input:
+            assert isinstance(x["content"], list)  # we don't accept str content inputs
+            if not any(  # input is TypedDict, output is BaseModel
+                (b.get("type") if isinstance(b, dict) else b.type)
+                in ("tool_use", "tool_result")
+                for b in x["content"]
+            ):
+                kept.append(x)
+        removed = len(input) - len(kept)
+        input[:] = kept
+        logger.info(f"{DIM}Compacted: removed {removed} messages{RESET}")
+
     style = styles.Style.from_dict({"": "ansibrightblack"})
     session = PromptSession(key_bindings=kb, style=style)
 
     while True:
         text: str = await session.prompt_async("> ")
         if text and text.strip():
-            prefix = "PLAN MODE - READ ONLY. " if plan_mode else "" + starting_phrase
+            prefix = ("PLAN MODE - READ ONLY. " if plan_mode else "") + starting_phrase
             await q.put(user(f"{prefix} {text.strip()}"))
 
 
@@ -101,6 +117,7 @@ async def main_async() -> None:
         "'esc esc':   interrupt\n"
         "'ctrl+u':    clear input\n"
         "'ctrl+l':    next model\n"
+        "'ctrl+k':    compact history\n"
         f"'ctrl+c':    exit{RESET}\n",
     )
 
