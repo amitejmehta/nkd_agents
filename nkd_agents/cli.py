@@ -7,6 +7,7 @@ from anthropic import AsyncAnthropic, omit
 from anthropic.types import MessageParam
 from prompt_toolkit import PromptSession, key_binding, styles
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+from prompt_toolkit.patch_stdout import patch_stdout
 
 from .anthropic import llm, user
 from .ctx import client_ctx
@@ -16,7 +17,6 @@ from .utils import load_env
 from .web import fetch_url, web_search
 
 logger = logging.getLogger(__name__)
-configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
 
 # configuration
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
@@ -48,6 +48,10 @@ async def llm_loop() -> None:
     while True:
         input.append(await q.get())  # q.get hangs here forever until msg added to queue
         llm_task = asyncio.create_task(llm(client, input, fns, **model_settings))
+        try:
+            await llm_task
+        except asyncio.CancelledError:
+            pass  # user interrupted, ready for next message
 
 
 async def user_input() -> None:
@@ -66,7 +70,6 @@ async def user_input() -> None:
         if llm_task and not llm_task.done():
             logger.info(f"{RED}...Interrupted. What now?{RESET}")
             llm_task.cancel()
-            event.app.exit()
 
     @kb.add("tab")
     def toggle_thinking(event: KeyPressEvent) -> None:
@@ -110,23 +113,25 @@ async def user_input() -> None:
 
 async def main_async() -> None:
     """Launch user input and LLM loops in parallel."""
-    logger.info(
-        f"\n\n{DIM}nkd-agents\n\n"
-        "'tab':       toggle thinking\n"
-        "'shift+tab': toggle plan mode\n"
-        "'esc esc':   interrupt\n"
-        "'ctrl+u':    clear input\n"
-        "'ctrl+l':    next model\n"
-        "'ctrl+k':    compact history\n"
-        f"'ctrl+c':    exit{RESET}\n",
-    )
+    with patch_stdout(raw=True):
+        configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
+        logger.info(
+            f"\n\n{DIM}nkd-agents\n\n"
+            "'tab':       toggle thinking\n"
+            "'shift+tab': toggle plan mode\n"
+            "'esc esc':   interrupt\n"
+            "'ctrl+u':    clear input\n"
+            "'ctrl+l':    next model\n"
+            "'ctrl+k':    compact history\n"
+            f"'ctrl+c':    exit{RESET}\n",
+        )
 
-    try:
-        _ = asyncio.create_task(llm_loop())
-        await user_input()
+        try:
+            _ = asyncio.create_task(llm_loop())
+            await user_input()
 
-    except (KeyboardInterrupt, EOFError):
-        logger.info(f"{DIM}Exiting... ({len(input)} messages){RESET}")
+        except (KeyboardInterrupt, EOFError):
+            logger.info(f"{DIM}Exiting... ({len(input)} messages){RESET}")
 
 
 def main() -> None:
