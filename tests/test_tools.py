@@ -304,6 +304,14 @@ class TestBash:
             assert "Error executing bash command:" in result
             assert "Exec failed" in result
 
+    @pytest.mark.asyncio
+    async def test_bash_timeout(self):
+        """Test bash timeout error handling."""
+        result = await bash("sleep 10", timeout=0.1)
+
+        assert "Error: Command timed out" in result
+        assert "0.1 seconds" in result
+
 
 class TestSubtask:
     @pytest.mark.asyncio
