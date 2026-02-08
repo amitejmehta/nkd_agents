@@ -19,8 +19,9 @@ logger = logging.getLogger(__name__)
 
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-6"]
 STARTING_PHRASE = "Be brief and exacting."
-PLAN_MODE_PREFIX = "PLAN MODE - READ ONLY. "
+PLAN_MODE_PREFIX = "PLAN MODE - READ ONLY."
 TOOLS = [read_file, edit_file, bash, subtask, fetch_url, web_search]
+THINKING = {"type": "enabled", "budget_tokens": 2048}
 BANNER = (
     f"\n\n{DIM}nkd-agents\n\n"
     "'tab':       toggle thinking\n"
@@ -68,9 +69,7 @@ class CLI:
 
     def toggle_thinking(self) -> None:
         current = self.settings["thinking"] != omit
-        self.settings["thinking"] = (
-            omit if current else {"type": "enabled", "budget_tokens": 2048}
-        )
+        self.settings["thinking"] = omit if current else THINKING
         logger.info(f"{DIM}Thinking: {'✓' if not current else '✗'}{RESET}")
 
     def toggle_plan_mode(self) -> None:
