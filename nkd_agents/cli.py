@@ -100,6 +100,8 @@ class CLI:
                 await self.llm_task
             except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.exception(f"{RED}Error in llm loop: {e}{RESET}")
 
     async def prompt_loop(self) -> None:
         kb = key_binding.KeyBindings()
