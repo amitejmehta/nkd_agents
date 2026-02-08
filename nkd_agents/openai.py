@@ -55,7 +55,7 @@ def extract_text_and_tool_calls(
     for item in response.output:
         if item.type == "reasoning":
             for content in item.summary:
-                if item.type == "text":
+                if content.type == "text":
                     logger.info(f"{response.model} Reasoning: {content.text}")
         if item.type == "message":
             for content in item.content:

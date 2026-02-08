@@ -36,7 +36,7 @@ def output_config(model: type[BaseModel]) -> OutputConfigParam:
 def bytes_to_content(data: bytes, ext: str) -> Content:
     """Convert bytes to Anthropic content blocks based on media type."""
     ext = "jpeg" if ext.lower() == "jpg" else ext.lower()
-    if ext in ("jpg", "jpeg", "png", "gif", "webp"):
+    if ext in ("jpeg", "png", "gif", "webp"):
         media_type = f"image/{ext}"
         assert media_type in ("image/jpeg", "image/png", "image/gif", "image/webp")
         base64_data = base64.standard_b64encode(data).decode("utf-8")

@@ -19,7 +19,7 @@ from .web import fetch_url, web_search
 logger = logging.getLogger(__name__)
 
 # configuration
-MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-5"]
+MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-6"]
 load_env((Path.home() / ".nkd-agents" / ".env").as_posix())
 if not os.environ.get("NKD_AGENTS_ANTHROPIC_API_KEY"):
     raise ValueError(

@@ -5,6 +5,7 @@ Only loaded when playwright is installed (pip install nkd_agents[web]).
 
 import logging
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import httpx
 import trafilatura
@@ -26,41 +27,42 @@ async def web_search(query: str, max_results: int = 5) -> str:
     Returns:
         Formatted string with titles, URLs, and snippets
     """
-
     logger.info(f"Searching: {GREEN}{query}{RESET}")
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, channel="chrome")
+            ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            ctx = await browser.new_context(user_agent=ua)
+            page = await ctx.new_page()
+            await page.goto(f"https://duckduckgo.com/?q={quote_plus(query)}&ia=web")
+            await page.wait_for_selector("article", timeout=10000)
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, channel="chrome")
-        ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        ctx = await browser.new_context(user_agent=ua)
-        page = await ctx.new_page()
-        await page.goto(f"https://duckduckgo.com/?q={query}&ia=web")
-        await page.wait_for_selector("article", timeout=10000)
+            results = await page.eval_on_selector_all(
+                "article",
+                """els => els.slice(0, %d).map(el => {
+                    const a = el.querySelector('a[data-testid="result-title-a"]');
+                    const snippet = el.querySelector('div[data-result="snippet"]');
+                    return {
+                        title: a?.innerText || '',
+                        url: a?.href || '',
+                        snippet: snippet?.innerText || ''
+                    };
+                }).filter(r => r.url)"""
+                % max_results,
+            )
 
-        results = await page.eval_on_selector_all(
-            "article",
-            """els => els.slice(0, %d).map(el => {
-                const a = el.querySelector('a[data-testid="result-title-a"]');
-                const snippet = el.querySelector('div[data-result="snippet"]');
-                return {
-                    title: a?.innerText || '',
-                    url: a?.href || '',
-                    snippet: snippet?.innerText || ''
-                };
-            }).filter(r => r.url)"""
-            % max_results,
+        if not results:
+            return "No results found"
+
+        output = "\n\n".join(
+            f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['snippet']}"
+            for r in results
         )
-        await browser.close()
-
-    if not results:
-        return "No results found"
-
-    output = "\n\n".join(
-        f"Title: {r['title']}\nURL: {r['url']}\nSnippet: {r['snippet']}"
-        for r in results
-    )
-    logger.info(f"Found {len(results)} results:\n{output}")
-    return output
+        logger.info(f"Found {len(results)} results:\n{output}")
+        return output
+    except Exception as e:
+        logger.warning(f"Error searching '{query}': {str(e)}")
+        return f"Error searching '{query}': {str(e)}"
 
 
 async def fetch_url(url: str, save_path: str) -> str:

@@ -74,7 +74,7 @@ async def edit_file(path: str, old_str: str, new_str: str, count: int = 1) -> st
         return f"Error editing file '{path}': {str(e)}"
 
 
-async def bash(command: str) -> str:
+async def bash(command: str, timeout: int = 30) -> str:
     """Execute a bash command and return the results.
 
     Returns one of the following strings:
@@ -92,19 +92,21 @@ async def bash(command: str) -> str:
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd_ctx.get(),
         )
-        stdout, stderr = await process.communicate()
-
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         result_str = f"STDOUT:\n{stdout.decode()}\nSTDERR:\n{stderr.decode()}\nEXIT CODE: {process.returncode}"
         logger.info(result_str)
         return result_str
+    except asyncio.TimeoutError:
+        return f"Error: Command timed out after {timeout} seconds"
     except asyncio.CancelledError:
-        if process is not None and process.returncode is None:
-            process.kill()
-            await process.wait()
         raise
     except Exception as e:
         logger.warning(f"Error executing bash command: {str(e)}")
         return f"Error executing bash command: {str(e)}"
+    finally:
+        if process is not None and process.returncode is None:
+            process.kill()
+            await process.wait()
 
 
 # Anthropic-specific: uses anthropic.llm function for sub-agent loop
