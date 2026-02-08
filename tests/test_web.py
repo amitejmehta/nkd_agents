@@ -35,7 +35,9 @@ def mock_httpx_success():
 @pytest.mark.asyncio
 async def test_fetch_url_success(mock_cwd, mock_httpx_success):
     """Successful fetch writes file and returns char count."""
-    with patch("nkd_agents.web.trafilatura.extract", return_value="# Extracted Content"):
+    with patch(
+        "nkd_agents.web.trafilatura.extract", return_value="# Extracted Content"
+    ):
         result = await fetch_url("https://example.com", "output.md")
 
     assert "19 chars" in result
