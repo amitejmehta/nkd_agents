@@ -1,6 +1,6 @@
 # nkd-agents
 
-When you strip it down, an agent is just an LLM in a loop with tools. The loop: call LLM → tool calls? execute and repeat → no tool calls? return text.
+When you strip em down, an agent is just an LLM in a loop with tools. The loop: call LLM → tool calls? execute and repeat → no tool calls? return text.
 
 `nkd-agents` (naked agents) is two things:
 1. A minimal async agent framework wrapping Anthropic and OpenAI APIs
@@ -31,12 +31,19 @@ In a fully async framework, tool context is trivial: Python's `contextvars.Conte
 - Enums: `Literal[...]`
 - Lists: `list[T]` for primitives
 
-Nested parameter structures aren't supported (they're a bit of a tool design anti-pattern). However, for cases requiring complex schemas, you may pass your own via the provider's native parameter (`tools` for Anthropic/OpenAI).
+Nested parameter structures aren't supported (they're a bit of a tool design anti-pattern). However, for rare cases requiring complex schemas, you may pass your own via the provider's native parameter (`tool` for Anthropic/OpenAI).
 
 
 ## The CLI
 
-The CLI is a terminal-based Claude coding assistant with the following tools `bash`, `read_file`, `edit_file`, `web_search`, `fetch_url`, `subtask`.
+The CLI is a terminal-based Claude coding assistant with the following tools:
+
+- `bash` - Execute shell commands with timeout and return stdout/stderr/exit code
+- `read_file` - Read text files, PDFs, and images (jpg, jpeg, png, gif, webp) as text or base64-encoded content
+- `edit_file` - Create new files or replace occurrences of strings in existing files (line-by-line diffs shown)
+- `web_search` - Search DuckDuckGo via headless Chrome and return titles, URLs, and snippets
+- `fetch_url` - Convert webpage to clean markdown, save to disk, return only path and character count
+- `subtask` - Spawn an autonomous sub-agent with full tool access (excluding nested subtasks)
 
 It supports queueing messages while Claude is working, and the following controls via keyboard shortcuts:
 
@@ -52,13 +59,13 @@ It supports queueing messages while Claude is working, and the following control
 
 **Context-Efficient Web Search**
 
-The CLI also includes a free `web_search` tool (DuckDuckGo via Playwright's headless Chrome) and a `fetch_url` tool designed for maximum context efficiency. Rather than injecting webpage content into the conversation, `fetch_url` converts a page to clean markdown, saves it to a file, and returns only the file path and character count. The full content never enters the context window—the model explores long responses via `bash` (grep, head, tail), reading only what it needs. Since the model filters out false positives at read time, the scraping step can favor recall over precision—ensuring more salient information (from complex JavaScript-heavy pages, for example.)
+The CLI includes a free `web_search` tool (DuckDuckGo via headless Chrome) and `fetch_url` tool designed for maximum context efficiency. Rather than injecting webpage content directly into the conversation, `fetch_url` converts pages to clean markdown, saves to disk, and returns only the file path and character count. Full content never enters the context window—the model explores long responses via `grep` (head, tail), reading only what it needs. Since the model filters false positives at read time, scraping can favor recall over precision—capturing more potentially relevant information (ie. from complex JavaScript-heavy pages).
 
 Coupled with the ability to spawn sub-agents (`subtask`), this makes the CLI exceptionally well-suited for deep research. Give it a well-written research prompt and it will search, fetch, and persist a local library of markdown files on disk—source material it can then cross-reference, explore, and synthesize across multiple documents, all without exhausting its context window.
 
 **Use of Start Phrases**
 
-Every message is prefixed with **"Be brief and exacting."** Why? We've found it provides a faster, cheaper experience w/o loss of reasoning capability. The key: tokens spent on *reasoning* (arriving at the answer) != tokens spent on *output* (presenting it). More reasoning improves quality; verbose output after solving wastes tokens. Reasoning models separate these as independent sections: allowing complex extended thinking with terse responses ( press `tab`).
+Perhaps the most unique feature, every message is prefixed with the phrase **"Be brief and exacting."** Why? The distinction: tokens spent on *reasoning* (arriving at the answer) vs. *output* (presenting it). Reasoning models separate these—thinking traces are independent from responses. More reasoning improves quality; more output after reaching the answer is just waste. The start phrase contrains output, not reasoning, creating a faster, cheaper coding assistant equally capable of complex reasoning. Toggle thinking on (`tab`) for extended reasoning with terse responses.
 
 Why not system prompting? System prompts for brevity degrade in long contexts—after multiple tool calls and file reads, they become a vanishing fraction of total context. Start phrases appear at the beginning of each turn, maintaining consistent influence regardless of conversation length.
 
@@ -97,7 +104,7 @@ nkd
 
 > **Requirements:** Chrome/Chromium for web search. No Chrome? Use Docker instead (see below).
 
-via Docker (can accesses files you mount)
+via Docker (can only access files you mount)
 ```bash
 docker build -t nkd-agents https://github.com/amitejmehta/nkd-agents.git
 
