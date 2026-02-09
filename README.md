@@ -1,8 +1,8 @@
 # nkd-agents
 
-An agent is just an LLM in a loop with tools. The loop: call LLM → tool calls? execute and repeat → no tool calls? return text.
+When you strip em down, an agent is just an LLM in a loop with tools. The loop: call LLM → tool calls? execute and repeat → no tool calls? return text.
 
-`nkd-agents` is two things:
+`nkd-agents` (naked agents) is two things:
 1. A minimal async agent framework wrapping Anthropic and OpenAI APIs
 2. A complete Claude CLI coding assistant powered by said framework
 
