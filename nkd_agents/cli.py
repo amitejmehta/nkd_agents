@@ -99,7 +99,7 @@ class CLI:
             try:
                 await self.llm_task
             except asyncio.CancelledError:
-                pass
+                pass  # catch so we can go back to queue.get()
             except Exception as e:
                 logger.exception(f"{RED}Error in llm loop: {e}{RESET}")
 
