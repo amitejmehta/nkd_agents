@@ -120,24 +120,15 @@ class CLI:
                 await self.queue.put(user(f"{prefix} {text.strip()}"))
 
     async def run(self) -> None:
-        with patch_stdout(raw=True):
-            configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
-            logger.info(BANNER)
-            llm_loop_task = None
-            try:
-                llm_loop_task = asyncio.create_task(self.llm_loop())
-                await self.prompt_loop()
-            except (KeyboardInterrupt, EOFError):
-                logger.info(f"{DIM}Exiting... ({len(self.messages)} messages){RESET}")
-            finally:
-                if llm_loop_task and not llm_loop_task.done():
-                    llm_loop_task.cancel()
-                    try:
-                        await llm_loop_task
-                    except asyncio.CancelledError:
-                        pass
+        await asyncio.gather(self.llm_loop(), self.prompt_loop())
 
 
 def main() -> None:
     load_env((Path.home() / ".nkd-agents" / ".env").as_posix())
-    asyncio.run(CLI().run())
+    with patch_stdout(raw=True):
+        try:
+            configure_logging(int(os.environ.get("LOG_LEVEL", logging.INFO)))
+            logger.info(BANNER)
+            asyncio.run(CLI().run())
+        except (KeyboardInterrupt, EOFError):
+            logger.info(f"{DIM}Exiting...{RESET}")
