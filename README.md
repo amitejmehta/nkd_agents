@@ -1,6 +1,6 @@
 # nkd-agents
 
-When you strip em down, an agent is just an LLM in a loop with tools. The loop: call LLM → tool calls? execute and repeat → no tool calls? return text.
+When you strip it down, an agent is just an LLM in a loop with tools. The loop: call LLM → tool calls? execute and repeat → no tool calls? return text.
 
 `nkd-agents` (naked agents) is two things:
 1. A minimal async agent framework wrapping Anthropic and OpenAI APIs
@@ -31,7 +31,7 @@ In a fully async framework, tool context is trivial: Python's `contextvars.Conte
 - Enums: `Literal[...]`
 - Lists: `list[T]` for primitives
 
-Nested parameter structures aren't supported (they're a bit of a tool design anti-pattern). However, for rare cases requiring complex schemas, you may pass your own via the provider's native parameter (`tool` for Anthropic/OpenAI).
+Nested parameter structures aren't supported (they're a bit of a tool design anti-pattern). However, for cases requiring complex schemas, you may pass your own via the provider's native parameter (`tools` for Anthropic/OpenAI).
 
 
 ## The CLI
@@ -58,7 +58,7 @@ Coupled with the ability to spawn sub-agents (`subtask`), this makes the CLI exc
 
 **Use of Start Phrases**
 
-Perhaps the most unique feature, every message is prefixed with the phrase **"Be brief and exacting."** Why? The distinction: tokens spent on *reasoning* (arriving at the answer) vs. *output* (presenting it). Reasoning models separate these—thinking traces are independent from responses. More reasoning improves quality; more output after reaching the answer is just waste. The start phrase contrains output, not reasoning, creating a faster, cheaper coding assistant equally capable of complex reasoning. Toggle thinking on (`tab`) for extended reasoning with terse responses.
+Every message is prefixed with **"Be brief and exacting."** Why? We've found it provides a faster, cheaper experience w/o loss of reasoning capability. The key: tokens spent on *reasoning* (arriving at the answer) != tokens spent on *output* (presenting it). More reasoning improves quality; verbose output after solving wastes tokens. Reasoning models separate these as independent sections: allowing complex extended thinking with terse responses ( press `tab`).
 
 Why not system prompting? System prompts for brevity degrade in long contexts—after multiple tool calls and file reads, they become a vanishing fraction of total context. Start phrases appear at the beginning of each turn, maintaining consistent influence regardless of conversation length.
 
