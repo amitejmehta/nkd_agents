@@ -64,6 +64,15 @@ Why not system prompting? System prompts for brevity degrade in long contexts—
 
 The same pattern is used for read-only mode by prefixing **"PLAN MODE - READ ONLY."** to each message.
 
+We've found start phrases to be extremely powerful. Experiment with your own via `NKD_AGENTS_START_PHRASE`:
+```bash
+# Single session
+NKD_AGENTS_START_PHRASE="Your custom phrase." nkd
+
+# Persist (add to ~/.nkd-agents/.env)
+echo 'NKD_AGENTS_START_PHRASE="Your custom phrase."' >> ~/.nkd-agents/.env
+```
+
 ## Installation
 
 **Package**:

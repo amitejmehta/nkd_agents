@@ -18,7 +18,7 @@ from .web import fetch_url, web_search
 logger = logging.getLogger(__name__)
 
 MODELS = ["claude-haiku-4-5", "claude-sonnet-4-5", "claude-opus-4-6"]
-STARTING_PHRASE = "Be brief and exacting."
+STARTING_PHRASE = os.environ.get("NKD_AGENTS_START_PHRASE", "Be brief and exacting.")
 PLAN_MODE_PREFIX = "PLAN MODE - READ ONLY."
 TOOLS = [read_file, edit_file, bash, subtask, fetch_url, web_search]
 THINKING = {"type": "enabled", "budget_tokens": 2048}
