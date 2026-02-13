@@ -31,7 +31,7 @@ In a fully async framework, tool context is trivial: Python's `contextvars.Conte
 - Enums: `Literal[...]`
 - Lists: `list[T]` for primitives
 
-Nested parameter structures aren't supported (they're a bit of a tool design anti-pattern). However, for rare cases requiring complex schemas, you may pass your own via the provider's native parameter (`tool` for Anthropic/OpenAI).
+Nested parameter structures aren't supported (they're a bit of a tool design anti-pattern). However, for cases requiring complex schemas, you may pass your own via the provider's native parameter (`tools=` for Anthropic/OpenAI).
 
 
 ## The CLI
