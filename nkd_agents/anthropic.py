@@ -139,14 +139,15 @@ async def llm(
     kwargs["tools"] = kwargs.get("tools", [tool_schema(fn) for fn in fns])
 
     while True:
-        if fns:
-            input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
+        try:
+            if fns:
+                input[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}  # type: ignore # TODO: fix this
 
-        resp: Message = await client.messages.create(messages=input, **kwargs)
-        logger.info(f"stop_reason={resp.stop_reason}\nusage={resp.usage}")
-
-        if fns:
-            del input[-1]["content"][-1]["cache_control"]  # type: ignore # TODO: fix this
+            resp: Message = await client.messages.create(messages=input, **kwargs)
+            logger.info(f"stop_reason={resp.stop_reason}\nusage={resp.usage}")
+        finally:
+            if fns:
+                del input[-1]["content"][-1]["cache_control"]  # type: ignore # TODO: fix this
 
         text, tool_calls = extract_text_and_tool_calls(resp)
         input.append({"role": "assistant", "content": resp.content})
